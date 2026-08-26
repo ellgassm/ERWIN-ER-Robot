@@ -7,7 +7,6 @@ import { measurementRepository } from "@/data/supabase/measurement-repository";
 import { patientRepository } from "@/data/supabase/patient-repository";
 import { sessionRepository } from "@/data/supabase/session-repository";
 import { triageRepository } from "@/data/supabase/triage-repository";
-import { mockRobot } from "@/features/robot/mock-robot";
 import { useSession } from "./use-session";
 
 interface Props {
@@ -51,12 +50,6 @@ export default function PatientSessionPage({ location }: Props) {
   }, [screen, session]);
 
   useEffect(() => {
-    if (!sessionId) return;
-    mockRobot.start();
-    return () => mockRobot.stop();
-  }, [sessionId]);
-
-  useEffect(() => {
     if (screen !== "review" || !session?.patientId) return;
     triageRepository
       .findByPatientId(session.patientId)
@@ -94,7 +87,6 @@ export default function PatientSessionPage({ location }: Props) {
       window.sessionStorage.setItem(SESSION_STORAGE_KEY, queued.sessionId);
       setSessionId(queued.sessionId);
       setScreen("waiting");
-      mockRobot.start();
     } catch {
       setError("We couldn’t create your ERWIN request. Please try again or ask a staff member for help.");
     } finally {

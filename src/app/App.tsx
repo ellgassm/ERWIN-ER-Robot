@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, Heart, Check, Info, Phone, Clock, Bell } from "lucide-react";
 
+import LocationLandingPage from "@/features/location/LocationLandingPage";
 import LocationRequestPage from "@/features/location/LocationRequestPage";
 
 type Screen =
@@ -68,6 +69,10 @@ export default function App() {
 
   if (typeof window !== "undefined" && window.location.pathname === "/request") {
     return <LocationRequestPage />;
+  }
+
+  if (typeof window !== "undefined" && window.location.pathname !== "/prototype") {
+    return <LocationLandingPage />;
   }
 
   function handleSignIn(e: React.FormEvent) {

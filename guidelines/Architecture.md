@@ -37,7 +37,7 @@ robot/                    Robot-process configuration and future bridge implemen
 guidelines/               Project and architecture documentation
 ```
 
-Only directories with Phase 1 files are created. Backend and robot implementation directories remain deferred until their first implementation phase.
+The `backend/` directory remains reserved for a future trusted API. The `robot/bridge/` directory now contains the first support-PC bridge implementation; it is intentionally independent from browser code.
 
 ## Frontend architecture
 
@@ -47,7 +47,7 @@ The frontend remains Vite, React, TypeScript, Tailwind-related styling, Motion, 
 
 UI components render state and invoke application-facing interfaces. They should not contain scattered database queries, robot commands, physical coordinates, or service-role credentials.
 
-The `/request?location=<LOCATION_CODE>` entry point is the first functional route. It reads only the location code from the URL and resolves the corresponding waiting location through the data-access boundary. The route does not create a session or communicate with the robot.
+The `/` entry point is a QR-instruction landing screen. The `/request?location=<LOCATION_CODE>` entry point reads only the location code from the URL and resolves the corresponding waiting location through the data-access boundary. The route does not create a session or communicate with the robot. The original Figma Make prototype remains available only at `/prototype` as a design reference and is not part of the real patient flow.
 
 ## Backend and data access
 
@@ -74,7 +74,7 @@ The current `supabase/schema.sql` is the data-model baseline. Security policies 
 
 ## Robot and ROS2/Nav2 boundary
 
-`src/shared/contracts/robot.ts` defines application-level robot contracts. A future robot bridge will claim queued assignments, translate a `NavigationTarget` into a Nav2 goal, and report application events. ROS2 topics, actions, map files, sensor drivers, and TurtleBot-specific details belong only in the robot bridge/adapter.
+`src/shared/contracts/robot.ts` defines application-level robot contracts. `robot/bridge/erwin_robot_bridge.py` claims the oldest queued assignment through Supabase REST, resolves its database-backed `NavigationTarget`, sends a standard Nav2 `NavigateToPose` goal, and writes the actual action result back to Supabase. ROS2 topics, actions, map files, sensor drivers, and TurtleBot-specific details belong only in this bridge.
 
 The navigation target contains `locationId`, `mapId`, `x`, `y`, and `yaw`. These values come from waiting-location data, never from patient-facing components.
 
@@ -89,9 +89,7 @@ requested -> queued -> navigating -> interacting -> measuring -> review -> compl
                                                        \-> cancelled
 ```
 
-The lifecycle is a shared contract. Phase 3 implements the local MVP transitions through a mock robot and patient interaction flow; production transition authorization remains future work.
-
-The mock robot is an application-level controller, not a ROS2 simulation. It claims the oldest queued session, changes it to `navigating`, then to `interacting` after a short demo delay. A local-storage lease prevents multiple patient tabs from controlling the mock robot simultaneously during a local demonstration.
+The lifecycle is a shared contract. The patient application displays the persisted lifecycle, while the support-PC bridge owns the `queued` → `navigating` → `interacting` transition based on actual Nav2 availability and action results. Patient interaction owns the later measurement/review/completion transitions for this phase.
 
 ## Environment configuration
 
@@ -126,14 +124,14 @@ The real `.env.local` remains ignored by Git.
 - Added patient, session, measurement, and triage repositories.
 - Added optional identified-patient creation and anonymous session creation.
 - Added session polling, queue position display, cancellation, refresh persistence, and understandable error states.
-- Added the mock robot controller and application-level navigation/session progression.
+- Added the support-PC ROS2/Nav2 bridge; physical navigation remains unverified until the bridge is run in the configured TurtleBot3 environment.
 - Added pain-scale and controlled mock heart-rate measurement recording.
 - Added baseline lookup and simple non-clinical comparison display.
 
 ## Planned for future phases
 
 - API implementation and server-side authorization
-- robot bridge and ROS2/Nav2 integration
+- robot bridge hardening, controlled Nav2 testing, and physical TurtleBot3 verification
 - onboard display/audio interaction
 - PPG measurement integration
 - staff review and alert handling
@@ -143,5 +141,5 @@ The real `.env.local` remains ignored by Git.
 1. Foundation and environment
 2. Real QR/location resolution
 3. Persistent patient workflow, queue, measurements, and mock robot — this phase
-4. TurtleBot3/ROS2/Nav2 integration
+4. TurtleBot3/ROS2/Nav2 integration and controlled physical verification
 5. Production authorization and staff review
