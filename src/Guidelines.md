@@ -1,61 +1,67 @@
-**Add your own guidelines here**
-<!--
+# ERWIN Project Guidelines
 
-System Guidelines
+**Project:** ERWIN  
+**Working Name:** ERWIN  
+**Project Type:** Healthcare Robotics Hackathon Prototype  
+**Primary Platform:** TurtleBot3 Burger + ROS2  
+**Frontend:** React + TypeScript + Vite  
+**Database:** Supabase PostgreSQL  
+**Development Stage:** Hackathon MVP  
 
-Use this file to provide the AI with rules and guidelines you want it to follow.
-This template outlines a few examples of things you can add. You can add your own sections and format it to suit your needs
+# 1. Project Overview
 
-TIP: More context isn't always better. It can confuse the LLM. Try and add the most important rules you need
+ERWIN is an autonomous emergency-room waiting-room assistant designed to help monitor and support patients while they wait for care.
 
-# General guidelines
+The core concept is:
 
-Any general rules you want the AI to follow.
-For example:
+> A patient waiting in an emergency department can request ERWIN from their waiting location. ERWIN autonomously navigates to the patient, provides a friendly interaction, optionally reassesses basic measurements such as heart rate and pain level, compares reassessment measurements against the patient's initial triage baseline when available, and communicates meaningful changes to medical staff.
 
-* Only use absolute positioning when necessary. Opt for responsive and well structured layouts that use flexbox and grid by default
-* Refactor code as you go to keep code clean
-* Keep file sizes small and put helper functions and components in their own files.
+ERWIN is intended as a **prototype demonstrating human-robot interaction, autonomous navigation, continuous reassessment, and healthcare workflow integration**.
 
---------------
+This is a hackathon prototype, not a production medical device.
 
-# Design system guidelines
-Rules for how the AI should make generations look like your company's design system
+The implementation should prioritize:
 
-Additionally, if you select a design system to use in the prompt box, you can reference
-your design system's components, tokens, variables and components.
-For example:
+1. Reliability
+2. Demonstrability
+3. Simplicity
+4. Clear architecture
+5. Easy debugging
+6. Extensibility
+7. Human-centered interaction
 
-* Use a base font-size of 14px
-* Date formats should always be in the format “Jun 10”
-* The bottom toolbar should only ever have a maximum of 4 items
-* Never use the floating action button with the bottom toolbar
-* Chips should always come in sets of 3 or more
-* Don't use a dropdown if there are 2 or fewer options
+Do not sacrifice a working MVP for unnecessary technical sophistication.
 
-You can also create sub sections and add more specific details
-For example:
+---
 
+# 2. Current MVP
 
-## Button
-The Button component is a fundamental interactive element in our design system, designed to trigger actions or navigate
-users through the application. It provides visual feedback and clear affordances to enhance user experience.
+The primary MVP demonstration should prove the following workflow:
 
-### Usage
-Buttons should be used for important actions that users need to take, such as form submissions, confirming choices,
-or initiating processes. They communicate interactivity and should have clear, action-oriented labels.
+```text
+Patient
+Scans QR code at waiting location
+Mobile web application opens
+Waiting location is identified automatically
 
-### Variants
-* Primary Button
-  * Purpose : Used for the main action in a section or page
-  * Visual Style : Bold, filled with the primary brand color
-  * Usage : One primary button per section to guide users toward the most important action
-* Secondary Button
-  * Purpose : Used for alternative or supporting actions
-  * Visual Style : Outlined with the primary color, transparent background
-  * Usage : Can appear alongside a primary button for less important actions
-* Tertiary Button
-  * Purpose : Used for the least important actions
-  * Visual Style : Text-only with no border, using primary color
-  * Usage : For actions that should be available but not emphasized
--->
+Patient optionally identifies themselves
+
+Patient requests ERWIN
+
+Request enters session queue
+
+Robot receives request
+
+Robot navigates to waiting location
+Robot arrives and greets patient
+
+Patient chooses an available interaction
+
+Heart rate and/or pain level can be collected
+
+Measurements are stored
+Measurements can be compared against baseline
+
+Session completes
+
+Robot serves next request or returns to base
