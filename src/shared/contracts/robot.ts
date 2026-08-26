@@ -10,7 +10,10 @@ export interface RobotState {
   status: RobotStatus;
   activeSessionId?: string;
   updatedAt: string;
+  errorMessage?: string;
 }
+
+export type RobotCommand = "NEXT" | "HOME";
 
 export interface RobotEvent {
   sessionId: string;

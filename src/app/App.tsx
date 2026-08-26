@@ -4,6 +4,7 @@ import { ChevronLeft, Heart, Check, Info, Phone, Clock, Bell } from "lucide-reac
 
 import LocationLandingPage from "@/features/location/LocationLandingPage";
 import LocationRequestPage from "@/features/location/LocationRequestPage";
+import RobotOperatorPage from "@/features/operator/RobotOperatorPage";
 
 type Screen =
   | "signin"
@@ -69,6 +70,10 @@ export default function App() {
 
   if (typeof window !== "undefined" && window.location.pathname === "/request") {
     return <LocationRequestPage />;
+  }
+
+  if (typeof window !== "undefined" && window.location.pathname === "/operator") {
+    return <RobotOperatorPage />;
   }
 
   if (typeof window !== "undefined" && window.location.pathname !== "/prototype") {

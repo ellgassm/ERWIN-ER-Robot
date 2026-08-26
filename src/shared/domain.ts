@@ -53,10 +53,9 @@ export interface Measurement {
 }
 
 export type RobotStatus =
-  | "idle"
-  | "navigating"
-  | "arrived"
-  | "interacting"
-  | "error"
-  | "returning"
-  | "charging";
+  | "home"
+  | "going_to_seat"
+  | "at_seat"
+  | "service_complete"
+  | "returning_home"
+  | "error";

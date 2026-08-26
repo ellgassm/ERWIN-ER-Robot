@@ -189,3 +189,57 @@ SET
     x = EXCLUDED.x,
     y = EXCLUDED.y,
     yaw = EXCLUDED.yaw;
+
+-- ============================================================
+-- 7. ROBOT STATE AND COMMANDS
+-- ============================================================
+-- The bridge owns robot orchestration state. Commands are persisted so an
+-- operator can explicitly release a seat assignment or send the robot home.
+-- This is intentionally simple for the hackathon's single-robot deployment.
+CREATE TABLE IF NOT EXISTS robotics.robot_states (
+    robot_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL DEFAULT 'home',
+    active_session_id UUID,
+    error_message TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_robot_state_session
+        FOREIGN KEY (active_session_id)
+        REFERENCES robotics.erwin_sessions(session_id)
+        ON DELETE SET NULL,
+
+    CONSTRAINT robot_status_check
+        CHECK (status IN ('home', 'going_to_seat', 'at_seat', 'service_complete', 'returning_home', 'error'))
+);
+
+CREATE TABLE IF NOT EXISTS robotics.robot_commands (
+    command_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    robot_id TEXT NOT NULL DEFAULT 'erwin-1',
+    command TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    processed_at TIMESTAMPTZ,
+
+    CONSTRAINT robot_command_check
+        CHECK (command IN ('NEXT', 'HOME')),
+
+    CONSTRAINT robot_command_status_check
+        CHECK (status IN ('pending', 'processing', 'completed', 'failed'))
+);
+
+-- Keep existing installations in sync when this file is re-run.
+ALTER TABLE robotics.robot_states DROP CONSTRAINT IF EXISTS robot_status_check;
+ALTER TABLE robotics.robot_states
+    ADD CONSTRAINT robot_status_check
+    CHECK (status IN ('home', 'going_to_seat', 'at_seat', 'service_complete', 'returning_home', 'error'));
+
+CREATE INDEX IF NOT EXISTS idx_robot_commands_pending
+    ON robotics.robot_commands(robot_id, status, created_at);
+
+ALTER TABLE robotics.robot_states DISABLE ROW LEVEL SECURITY;
+ALTER TABLE robotics.robot_commands DISABLE ROW LEVEL SECURITY;
+
+INSERT INTO robotics.robot_states (robot_id, status)
+VALUES ('erwin-1', 'home')
+ON CONFLICT (robot_id) DO NOTHING;
