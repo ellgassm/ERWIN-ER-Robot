@@ -9,3 +9,7 @@ export function getPublicConfig(env: ImportMetaEnv = import.meta.env): PublicCon
     supabaseAnonKey: env.VITE_SUPABASE_ANON_KEY ?? "",
   };
 }
+
+export function hasPublicSupabaseConfig(config: PublicConfig): boolean {
+  return Boolean(config.supabaseUrl && config.supabaseAnonKey);
+}

@@ -49,7 +49,9 @@ export default function LocationRequestPage() {
           <div className="rounded-3xl border border-border bg-card p-7 shadow-sm">
             <AlertCircle size={42} className="mb-5 text-destructive" />
             <h1 className="text-2xl font-black">We couldn’t verify this location</h1>
-            <p className="mt-3 text-muted-foreground">Please try again or ask a staff member for help.</p>
+            <p className="mt-3 text-muted-foreground">
+              Please try again. If this continues, confirm the Vite Supabase environment variables and ask a staff member for help.
+            </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
