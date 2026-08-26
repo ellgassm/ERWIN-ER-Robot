@@ -18,6 +18,7 @@ export function useWaitingLocation(locationCode: string | null): LocationResolut
 
   useEffect(() => {
     let cancelled = false;
+    let timeoutId: number | undefined;
 
     if (!locationCode) {
       setState({ status: "not-found", location: null, error: null });
@@ -27,8 +28,14 @@ export function useWaitingLocation(locationCode: string | null): LocationResolut
     }
 
     setState({ status: "loading", location: null, error: null });
-    locationRepository
-      .findByCode(locationCode)
+    // Resolve on a microtask so synchronous configuration errors are handled
+    // by the same error path as asynchronous Supabase failures.
+    const lookup = Promise.resolve().then(() => locationRepository.findByCode(locationCode));
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = window.setTimeout(() => reject(new Error("Location lookup timed out.")), 10000);
+    });
+
+    Promise.race([lookup, timeout])
       .then((location) => {
         if (cancelled) return;
         setState(
@@ -44,10 +51,14 @@ export function useWaitingLocation(locationCode: string | null): LocationResolut
           location: null,
           error: error instanceof Error ? error : new Error("Unable to resolve location."),
         });
+      })
+      .finally(() => {
+        if (timeoutId !== undefined) window.clearTimeout(timeoutId);
       });
 
     return () => {
       cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
   }, [locationCode]);
 
