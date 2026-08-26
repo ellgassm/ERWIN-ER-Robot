@@ -21,6 +21,8 @@ export ERWIN_POLL_INTERVAL_SECONDS="2"
 
 The bridge reads `x`, `y`, and `yaw` from the session's `waiting_locations` row. It never contains seat coordinates. For the current SLAM targets, `SEAT1` and `SEAT2` use the `map` frame and a west-facing yaw of `3.141592653589793` radians. This assumes the map's positive x-axis is east; verify that convention with the SLAM team before physical movement.
 
+The reported docked home pose is `(-0.02098032273352146, -0.028868287801742554)` in the `map` frame. Its north-facing yaw is `1.5707963267948966` radians under the same axis convention. This is recorded as robot configuration, not as a patient waiting location. Return-to-home behavior is not enabled until that behavior is implemented and tested separately.
+
 ## Run
 
 ```bash
