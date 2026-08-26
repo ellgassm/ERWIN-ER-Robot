@@ -2,6 +2,8 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, Heart, Check, Info, Phone, Clock, Bell } from "lucide-react";
 
+import LocationRequestPage from "@/features/location/LocationRequestPage";
+
 type Screen =
   | "signin"
   | "scan"
@@ -63,6 +65,10 @@ export default function App() {
   const [called, setCalled] = useState(false);
 
   const stepIndex = STEP_MAP[screen];
+
+  if (typeof window !== "undefined" && window.location.pathname === "/request") {
+    return <LocationRequestPage />;
+  }
 
   function handleSignIn(e: React.FormEvent) {
     e.preventDefault();

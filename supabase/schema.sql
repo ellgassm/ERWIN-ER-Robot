@@ -1,4 +1,14 @@
 -- ============================================================
+-- ERWIN - Hackathon Supabase Database Schema
+-- ============================================================
+--
+-- This is a hackathon/prototype database. Row Level Security is
+-- intentionally disabled below. Do not use this configuration with
+-- real patient information.
+--
+-- Anonymous sessions use erwin_sessions.patient_id = NULL.
+-- Identified sessions reference robotics.patients(patient_id).
+-- ============================================================
 -- SCHEMAS & EXTENSIONS
 -- ============================================================
 CREATE SCHEMA IF NOT EXISTS robotics;
@@ -86,6 +96,10 @@ CREATE TABLE IF NOT EXISTS robotics.erwin_sessions (
         )
 );
 
+-- Preserve anonymous-session support when upgrading an older database.
+ALTER TABLE robotics.erwin_sessions
+ALTER COLUMN patient_id DROP NOT NULL;
+
 -- ============================================================
 -- 5. MEASUREMENTS
 -- ============================================================
@@ -124,22 +138,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_waiting_locations_code ON robotics.waiting
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON robotics.erwin_sessions(status);
 
 -- ============================================================
--- ROW LEVEL SECURITY & REALTIME
+-- HACKATHON ACCESS CONFIGURATION
 -- ============================================================
-ALTER TABLE robotics.patients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE robotics.waiting_locations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE robotics.triage_assessments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE robotics.erwin_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE robotics.measurements ENABLE ROW LEVEL SECURITY;
+--
+-- RLS is intentionally disabled for the local hackathon MVP so the
+-- browser anon client can exercise the complete prototype workflow.
+-- Production ERWIN must use authenticated, least-privilege access,
+-- server-side privileged operations, and audit logging.
+-- ============================================================
+ALTER TABLE robotics.patients DISABLE ROW LEVEL SECURITY;
+ALTER TABLE robotics.waiting_locations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE robotics.triage_assessments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE robotics.erwin_sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE robotics.measurements DISABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "public read patients" ON robotics.patients FOR SELECT USING (true);
-CREATE POLICY "public read locations" ON robotics.waiting_locations FOR SELECT USING (true);
-CREATE POLICY "public read triage" ON robotics.triage_assessments FOR SELECT USING (true);
-CREATE POLICY "public read sessions" ON robotics.erwin_sessions FOR SELECT USING (true);
-CREATE POLICY "public read measurements" ON robotics.measurements FOR SELECT USING (true);
+DROP POLICY IF EXISTS "public read patients" ON robotics.patients;
+DROP POLICY IF EXISTS "public read locations" ON robotics.waiting_locations;
+DROP POLICY IF EXISTS "public read triage" ON robotics.triage_assessments;
+DROP POLICY IF EXISTS "public read sessions" ON robotics.erwin_sessions;
+DROP POLICY IF EXISTS "public read measurements" ON robotics.measurements;
 
-ALTER PUBLICATION supabase_realtime ADD TABLE robotics.erwin_sessions;
-ALTER PUBLICATION supabase_realtime ADD TABLE robotics.measurements;
+-- The MVP uses polling and intentionally does not add tables to
+-- supabase_realtime.
 
 -- ============================================================
 -- SEED DATA

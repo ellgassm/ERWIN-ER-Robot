@@ -2,7 +2,7 @@
 
 ## Status
 
-This document records the foundation established in Phase 1. It distinguishes architecture and interfaces created in this phase from application features intentionally deferred to later phases.
+This document records the foundation established in Phases 1 through 3. It distinguishes implemented architecture from application features intentionally deferred to later phases.
 
 ## System overview
 
@@ -47,11 +47,17 @@ The frontend remains Vite, React, TypeScript, Tailwind-related styling, Motion, 
 
 UI components render state and invoke application-facing interfaces. They should not contain scattered database queries, robot commands, physical coordinates, or service-role credentials.
 
+The `/request?location=<LOCATION_CODE>` entry point is the first functional route. It reads only the location code from the URL and resolves the corresponding waiting location through the data-access boundary. The route does not create a session or communicate with the robot.
+
 ## Backend and data access
 
 The intended backend is one thin trusted API layer, implemented later as the simplest deployment option for the team. It validates requests, resolves location codes, creates sessions, enforces session transitions, and records measurements.
 
 `src/data/repositories.ts` defines the application-facing repository boundaries. A future Supabase adapter or backend service implements these interfaces. The patient UI should not directly scatter raw Supabase queries across components.
+
+Phase 2 adds a browser-safe `SupabaseLocationRepository` implementation for the `robotics.waiting_locations` lookup. It maps database column names into the domain `WaitingLocation` and `NavigationTarget` types. Other repositories remain interfaces only.
+
+Phase 3 adds typed Supabase repositories for patients, sessions, measurements, and triage baselines. The patient-facing workflow creates an anonymous or identified session only when the patient requests ERWIN, then polls the session state from Supabase.
 
 ## Supabase boundary
 
@@ -83,7 +89,9 @@ requested -> queued -> navigating -> interacting -> measuring -> review -> compl
                                                        \-> cancelled
 ```
 
-The lifecycle is a contract in Phase 1. Transition enforcement and workflow behavior are future work.
+The lifecycle is a shared contract. Phase 3 implements the local MVP transitions through a mock robot and patient interaction flow; production transition authorization remains future work.
+
+The mock robot is an application-level controller, not a ROS2 simulation. It claims the oldest queued session, changes it to `navigating`, then to `interacting` after a short demo delay. A local-storage lease prevents multiple patient tabs from controlling the mock robot simultaneously during a local demonstration.
 
 ## Environment configuration
 
@@ -102,7 +110,7 @@ Vite exposes variables prefixed with `VITE_`, so the client configuration uses t
 
 The real `.env.local` remains ignored by Git.
 
-## Implemented in Phase 1
+## Implemented in Phases 1, 2, and 3
 
 - Restored the Vite React entry point.
 - Added strict TypeScript configuration and the `@/*` path mapping.
@@ -111,27 +119,29 @@ The real `.env.local` remains ignored by Git.
 - Added repository interfaces for future data-access adapters.
 - Added architecture documentation.
 - Preserved the existing Figma Make UI, styling, and shadcn/ui components.
+- Added the `/request?location=...` location-resolution route.
+- Added Vite public Supabase client configuration and a typed waiting-location repository.
+- Added loading, missing/unknown-location, and database-error UI states.
+- Synchronized the repository schema with the hackathon configuration: anonymous sessions, disabled RLS, no Realtime dependency, and seeded A12.
+- Added patient, session, measurement, and triage repositories.
+- Added optional identified-patient creation and anonymous session creation.
+- Added session polling, queue position display, cancellation, refresh persistence, and understandable error states.
+- Added the mock robot controller and application-level navigation/session progression.
+- Added pain-scale and controlled mock heart-rate measurement recording.
+- Added baseline lookup and simple non-clinical comparison display.
 
 ## Planned for future phases
 
-- QR URL/location resolution
-- patient identification
-- session creation and queue behavior
-- API implementation and Supabase adapter
-- polling
+- API implementation and server-side authorization
 - robot bridge and ROS2/Nav2 integration
 - onboard display/audio interaction
 - PPG measurement integration
-- pain collection
-- baseline comparison
 - staff review and alert handling
 
 ## Development phases
 
-1. Foundation and environment — this phase
-2. Real QR/location resolution and session API
-3. Persistent session status and queue polling
-4. Simulated robot bridge
-5. TurtleBot3/ROS2/Nav2 integration
-6. Patient interaction and measurements
-7. Baseline comparison and staff review
+1. Foundation and environment
+2. Real QR/location resolution
+3. Persistent patient workflow, queue, measurements, and mock robot — this phase
+4. TurtleBot3/ROS2/Nav2 integration
+5. Production authorization and staff review
