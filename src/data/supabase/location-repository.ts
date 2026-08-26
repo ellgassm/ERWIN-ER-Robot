@@ -38,7 +38,9 @@ export class SupabaseLocationRepository implements LocationRepository {
       .schema("robotics")
       .from("waiting_locations")
       .select("location_id, location_code, name, map_id, x, y, yaw, created_at")
-      .eq("location_code", locationCode)
+      // QR codes are human-readable identifiers; tolerate case differences
+      // while the database remains the source of truth for the record.
+      .ilike("location_code", locationCode)
       .maybeSingle<WaitingLocationRow>();
 
     if (error) throw error;

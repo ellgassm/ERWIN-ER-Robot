@@ -16,10 +16,14 @@ interface Props {
 type Screen = "identify" | "waiting" | "choose" | "pain" | "heart-rate" | "review" | "complete";
 type MeasurementPlan = Array<"pain" | "heart_rate">;
 
-const SESSION_STORAGE_KEY = "erwin.patient.session-id";
+const SESSION_STORAGE_KEY_PREFIX = "erwin.patient.session-id";
 
-function getStoredSessionId(): string | null {
-  return typeof window === "undefined" ? null : window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+function getSessionStorageKey(locationCode: string): string {
+  return `${SESSION_STORAGE_KEY_PREFIX}:${locationCode}`;
+}
+
+function getStoredSessionId(locationCode: string): string | null {
+  return typeof window === "undefined" ? null : window.sessionStorage.getItem(getSessionStorageKey(locationCode));
 }
 
 function statusLabel(status: SessionStatus): string {
@@ -27,7 +31,8 @@ function statusLabel(status: SessionStatus): string {
 }
 
 export default function PatientSessionPage({ location }: Props) {
-  const [sessionId, setSessionId] = useState<string | null>(getStoredSessionId);
+  const sessionStorageKey = getSessionStorageKey(location.locationCode);
+  const [sessionId, setSessionId] = useState<string | null>(() => getStoredSessionId(location.locationCode));
   const [screen, setScreen] = useState<Screen>(sessionId ? "waiting" : "identify");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -84,7 +89,7 @@ export default function PatientSessionPage({ location }: Props) {
         : null;
       const created = await sessionRepository.create({ locationId: location.locationId, patientId: patient?.patientId });
       const queued = await sessionRepository.updateStatus(created.sessionId, "queued");
-      window.sessionStorage.setItem(SESSION_STORAGE_KEY, queued.sessionId);
+      window.sessionStorage.setItem(sessionStorageKey, queued.sessionId);
       setSessionId(queued.sessionId);
       setScreen("waiting");
     } catch {
@@ -98,6 +103,9 @@ export default function PatientSessionPage({ location }: Props) {
     if (!sessionId) return;
     try {
       await sessionRepository.updateStatus(sessionId, "cancelled");
+      window.sessionStorage.removeItem(sessionStorageKey);
+      setSessionId(null);
+      setScreen("identify");
       setError(null);
     } catch {
       setError("We couldn’t cancel this request. Please ask a staff member for help.");
@@ -132,7 +140,7 @@ export default function PatientSessionPage({ location }: Props) {
     if (!sessionId) return;
     try {
       await sessionRepository.updateStatus(sessionId, "completed");
-      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      window.sessionStorage.removeItem(sessionStorageKey);
       setScreen("complete");
     } catch {
       setError("We couldn’t complete this interaction. Please ask a staff member for help.");
@@ -140,8 +148,8 @@ export default function PatientSessionPage({ location }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-background px-5 py-8 text-foreground">
-      <section className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-sm flex-col">
+    <main className="min-h-screen overflow-x-hidden bg-background px-5 py-8 text-foreground">
+      <section className="mx-auto flex min-h-[calc(100vh-4rem)] w-full min-w-0 max-w-sm flex-col">
         <header className="mb-6 flex items-center justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">ERWIN</p>
@@ -176,13 +184,13 @@ export default function PatientSessionPage({ location }: Props) {
         )}
 
         {screen === "identify" && (
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+          <div className="min-w-0 rounded-3xl border border-border bg-card p-6 shadow-sm">
             <h1 className="text-3xl font-black">Request ERWIN</h1>
             <p className="mt-2 text-muted-foreground">You can continue anonymously or optionally identify yourself for baseline comparison.</p>
             <div className="mt-6 space-y-3">
-              <input aria-label="First name" value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="First name (optional)" className="h-12 w-full rounded-2xl border-2 border-border bg-background px-4" />
-              <input aria-label="Last name" value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Last name (optional)" className="h-12 w-full rounded-2xl border-2 border-border bg-background px-4" />
-              <input aria-label="Date of birth" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} className="h-12 w-full rounded-2xl border-2 border-border bg-background px-4" />
+              <input aria-label="First name" value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="First name (optional)" className="box-border h-12 min-w-0 max-w-full w-full rounded-2xl border-2 border-border bg-background px-4" />
+              <input aria-label="Last name" value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Last name (optional)" className="box-border h-12 min-w-0 max-w-full w-full rounded-2xl border-2 border-border bg-background px-4" />
+              <input aria-label="Date of birth" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} className="box-border h-12 min-w-0 max-w-full w-full appearance-none rounded-2xl border-2 border-border bg-background px-4" />
             </div>
             <button type="button" disabled={creating} onClick={() => void requestErwin()} className="mt-6 h-14 w-full rounded-2xl bg-primary font-black text-primary-foreground disabled:opacity-50">{creating ? "Requesting…" : "Call ERWIN"}</button>
             <button type="button" disabled={creating} onClick={() => void requestErwin(true)} className="mt-3 h-12 w-full rounded-2xl border border-border font-bold text-muted-foreground disabled:opacity-50">Continue anonymously</button>
@@ -190,7 +198,7 @@ export default function PatientSessionPage({ location }: Props) {
         )}
 
         {screen === "waiting" && (
-          <div className="rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
+          <div className="min-w-0 rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
             <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-secondary"><Phone size={32} className="text-primary" /></div>
             <h1 className="text-3xl font-black">{currentStatus ? statusLabel(currentStatus) : "Your request is being sent"}</h1>
             <p className="mt-2 text-muted-foreground">ERWIN will come to {location.locationCode}.</p>
@@ -203,7 +211,7 @@ export default function PatientSessionPage({ location }: Props) {
         )}
 
         {screen === "choose" && (
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+          <div className="min-w-0 rounded-3xl border border-border bg-card p-6 shadow-sm">
             <CheckCircle2 size={42} className="mb-4 text-accent" />
             <h1 className="text-3xl font-black">ERWIN has arrived</h1>
             <p className="mt-2 text-muted-foreground">Choose an interaction to complete while you wait.</p>
@@ -216,7 +224,7 @@ export default function PatientSessionPage({ location }: Props) {
         )}
 
         {screen === "pain" && (
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+          <div className="min-w-0 rounded-3xl border border-border bg-card p-6 shadow-sm">
             <h1 className="text-3xl font-black">How is your pain?</h1>
             <p className="mt-2 text-muted-foreground">Tap the number that best describes how you feel right now.</p>
             <div className="mt-7 grid grid-cols-6 gap-2">{Array.from({ length: 11 }, (_, value) => <button key={value} type="button" onClick={() => setPain(value)} className={`h-11 rounded-full border-2 font-black ${pain === value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}>{value}</button>)}</div>
@@ -225,7 +233,7 @@ export default function PatientSessionPage({ location }: Props) {
         )}
 
         {screen === "heart-rate" && (
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+          <div className="min-w-0 rounded-3xl border border-border bg-card p-6 shadow-sm">
             <h1 className="text-3xl font-black">Heart-rate check</h1>
             <p className="mt-2 text-muted-foreground">Mock sensor value for this local demonstration. The hardware adapter will replace this later.</p>
             <label className="mt-7 block text-sm font-bold">Heart rate (BPM)<input type="number" min="0" max="300" value={heartRate} onChange={(event) => setHeartRate(event.target.value)} className="mt-2 h-14 w-full rounded-2xl border-2 border-border bg-background px-4 text-2xl font-black" /></label>
@@ -234,7 +242,7 @@ export default function PatientSessionPage({ location }: Props) {
         )}
 
         {screen === "review" && (
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+          <div className="min-w-0 rounded-3xl border border-border bg-card p-6 shadow-sm">
             <h1 className="text-3xl font-black">Review complete</h1>
             <p className="mt-2 text-muted-foreground">Your measurements were recorded for this ERWIN session.</p>
             <div className="mt-6 space-y-3">{Array.from(recordedTypes).map((type) => <div key={type} className="flex items-center justify-between rounded-2xl bg-secondary px-4 py-3"><span className="font-bold">{type === "heart_rate" ? "Heart rate" : "Pain"}</span><span className="font-black">{type === "heart_rate" ? `${heartRate} BPM` : `${pain}/10`}</span></div>)}</div>

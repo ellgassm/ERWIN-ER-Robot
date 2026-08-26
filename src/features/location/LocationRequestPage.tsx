@@ -12,7 +12,7 @@ export default function LocationRequestPage() {
   const locationCode = getCurrentLocationCode();
   const resolution = useWaitingLocation(locationCode);
 
-  if (resolution.status === "success") return <PatientSessionPage location={resolution.location} />;
+  if (resolution.status === "success") return <PatientSessionPage key={resolution.location.locationId} location={resolution.location} />;
 
   return (
     <main className="min-h-screen bg-background px-5 py-10 text-foreground">
