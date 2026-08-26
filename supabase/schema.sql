@@ -173,14 +173,15 @@ VALUES (
 ON CONFLICT (location_code) DO NOTHING;
 
 -- Current SLAM-map seat targets.
--- Coordinates are expressed in the `map` frame. A west-facing target uses
--- yaw = pi radians (assuming the map's +x axis points east).
+-- Coordinates are expressed in the `map` frame. Based on the observed
+-- navigation test, +x points north and +y points west on this map. Therefore
+-- north-facing HOME is yaw 0 and west-facing seats use yaw = pi / 2 radians.
 INSERT INTO robotics.waiting_locations (
     location_code, name, map_id, x, y, yaw
 )
 VALUES
-    ('SEAT1', 'Waiting Seat 1', 'er_map', 2.2925310134887695, -0.10433311015367508, 3.141592653589793),
-    ('SEAT2', 'Waiting Seat 2', 'er_map', 3.48934006690979, -0.11032122373580933, 3.141592653589793)
+    ('SEAT1', 'Waiting Seat 1', 'er_map', 2.2925310134887695, -0.10433311015367508, 1.5707963267948966),
+    ('SEAT2', 'Waiting Seat 2', 'er_map', 3.48934006690979, -0.11032122373580933, 1.5707963267948966)
 ON CONFLICT (location_code) DO UPDATE
 SET
     name = EXCLUDED.name,

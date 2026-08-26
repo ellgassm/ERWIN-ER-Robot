@@ -234,6 +234,8 @@ def main() -> None:
     bridge = ErwinRobotBridge(database)
     try:
         rclpy.spin(bridge)
+    except KeyboardInterrupt:
+        pass
     finally:
         bridge.destroy_node()
         rclpy.shutdown()
