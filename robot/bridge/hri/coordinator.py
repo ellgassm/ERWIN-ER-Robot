@@ -1,8 +1,9 @@
 """Coordinates the HRI domain state machine with external adapters."""
 
+import random
 import time
 
-from .hri_state_machine import HriEvent, HriSession, HriState
+from .hri_state_machine import AssistanceType, HriEvent, HriSession, HriState
 from .ports import HriDisplayPort
 
 
@@ -25,12 +26,13 @@ class HriCoordinator:
         sensor_setup_duration_seconds: float = 10.0,
         input_timeout_seconds: float = 10.0,
         passive_state_timeout_seconds: float = 2.0,
-        mock_heart_rate_bpm: float = 72.0,
+        mock_heart_rate_min_bpm: int = 75,
+        mock_heart_rate_max_bpm: int = 105,
     ) -> None:
         if any(duration <= 0 for duration in (breathing_duration_seconds, heart_rate_duration_seconds, results_duration_seconds, completion_duration_seconds, sensor_setup_duration_seconds, input_timeout_seconds, passive_state_timeout_seconds)):
             raise ValueError("HRI durations must be greater than zero")
-        if not 0 <= mock_heart_rate_bpm <= 300:
-            raise ValueError("mock heart rate must be between 0 and 300")
+        if not 0 <= mock_heart_rate_min_bpm <= mock_heart_rate_max_bpm <= 300:
+            raise ValueError("mock heart-rate range must be within 0-300")
         self.display = display
         self.breathing_duration_seconds = breathing_duration_seconds
         self.heart_rate_duration_seconds = heart_rate_duration_seconds
@@ -39,21 +41,30 @@ class HriCoordinator:
         self.sensor_setup_duration_seconds = sensor_setup_duration_seconds
         self.input_timeout_seconds = input_timeout_seconds
         self.passive_state_timeout_seconds = passive_state_timeout_seconds
-        self.mock_heart_rate_bpm = mock_heart_rate_bpm
+        self.mock_heart_rate_min_bpm = mock_heart_rate_min_bpm
+        self.mock_heart_rate_max_bpm = mock_heart_rate_max_bpm
         self.breathing_started_at: float | None = None
         self.heart_rate_started_at: float | None = None
         self.results_started_at: float | None = None
         self.complete_started_at: float | None = None
         self.sensor_setup_started_at: float | None = None
         self.state_started_at: float | None = None
+        self.selection_fallback_task = AssistanceType.VITALS
         self.session: HriSession | None = None
 
     @property
     def state(self) -> HriState | None:
         return self.session.state if self.session else None
 
-    def start(self, session_id: str) -> HriState:
+    def start(
+        self,
+        session_id: str,
+        selection_fallback_task: AssistanceType = AssistanceType.VITALS,
+    ) -> HriState:
+        if selection_fallback_task not in {AssistanceType.VITALS, AssistanceType.BREATHING}:
+            raise ValueError("selection fallback task must be vitals or breathing")
         self.session = HriSession.start(session_id)
+        self.selection_fallback_task = selection_fallback_task
         self._render()
         return self.handle(HriEvent.arrived())
 
@@ -100,8 +111,7 @@ class HriCoordinator:
         if self.state_started_at is not None:
             elapsed = current_time - self.state_started_at
             if self.state == HriState.SELECT_ASSISTANCE and elapsed >= self.input_timeout_seconds:
-                from .hri_state_machine import AssistanceType
-                return self.handle(HriEvent.task_choice(AssistanceType.VITALS))
+                return self.handle(HriEvent.task_choice(self.selection_fallback_task))
             if self.state == HriState.PAIN_INPUT and elapsed >= self.input_timeout_seconds:
                 return self.handle_pain(4)
             if self.state in {HriState.ASK_BREATHING_FOLLOWUP, HriState.ASK_VITALS_FOLLOWUP} and elapsed >= self.input_timeout_seconds:
@@ -113,7 +123,9 @@ class HriCoordinator:
                 return self.handle_breathing_complete()
         if self.state == HriState.HEART_RATE_MEASUREMENT and self.heart_rate_started_at is not None:
             if current_time - self.heart_rate_started_at >= self.heart_rate_duration_seconds:
-                return self.handle_heart_rate(self.mock_heart_rate_bpm)
+                return self.handle_heart_rate(
+                    float(random.randint(self.mock_heart_rate_min_bpm, self.mock_heart_rate_max_bpm))
+                )
         if self.state == HriState.SENSOR_SETUP and self.sensor_setup_started_at is not None:
             if current_time - self.sensor_setup_started_at >= self.sensor_setup_duration_seconds:
                 return self.handle_ppg_attached()

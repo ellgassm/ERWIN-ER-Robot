@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from hri.coordinator import HriCoordinator
-from hri.hri_state_machine import HriEvent, HriState
+from hri.hri_state_machine import AssistanceType, HriEvent, HriState
 from hri.sensor_adapters import SensorEventAdapter
 
 
@@ -81,12 +81,21 @@ class SensorIntegrationTests(unittest.TestCase):
         self.assertEqual(coordinator.tick(now=pain_started_at + 10), HriState.SENSOR_SETUP)
         self.assertEqual(coordinator.session.pain_level, 4)
 
+    def test_second_demo_session_can_default_to_breathing(self):
+        coordinator = HriCoordinator(input_timeout_seconds=10)
+        coordinator.start("session-two", AssistanceType.BREATHING)
+        started_at = coordinator.state_started_at
+        self.assertIsNotNone(started_at)
+        self.assertEqual(coordinator.tick(now=started_at + 9.9), HriState.SELECT_ASSISTANCE)
+        self.assertEqual(coordinator.tick(now=started_at + 10), HriState.BREATHING_EXERCISE)
+
     def test_pain_starts_mock_heart_rate_then_auto_completes_results(self):
         coordinator = HriCoordinator(
             sensor_setup_duration_seconds=10,
             heart_rate_duration_seconds=7,
             results_duration_seconds=5,
-            mock_heart_rate_bpm=72,
+            mock_heart_rate_min_bpm=75,
+            mock_heart_rate_max_bpm=105,
         )
         adapter = SensorEventAdapter(coordinator)
         coordinator.start("session-results")
@@ -103,7 +112,9 @@ class SensorIntegrationTests(unittest.TestCase):
         self.assertIsNotNone(hr_started_at)
         self.assertEqual(coordinator.tick(now=hr_started_at + 6.9), HriState.HEART_RATE_MEASUREMENT)
         self.assertEqual(coordinator.tick(now=hr_started_at + 7), HriState.DISPLAY_VITALS)
-        self.assertEqual(coordinator.session.heart_rate, 72)
+        self.assertIsNotNone(coordinator.session.heart_rate)
+        self.assertGreaterEqual(coordinator.session.heart_rate, 75)
+        self.assertLessEqual(coordinator.session.heart_rate, 105)
 
         results_started_at = coordinator.results_started_at
         self.assertIsNotNone(results_started_at)

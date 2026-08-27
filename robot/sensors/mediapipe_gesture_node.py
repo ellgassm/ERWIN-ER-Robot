@@ -25,7 +25,7 @@ from mediapipe.tasks.python import vision
 SENSOR_DEV = Path(__file__).resolve().parents[2] / "sensor-dev"
 sys.path.insert(0, str(SENSOR_DEV))
 
-from cv.gestures import GestureClassifier, TemporalGestureConfirmer, TwoHandPainCounter  # noqa: E402
+from cv.gestures import Gesture, GestureClassifier, TemporalGestureConfirmer, TwoHandPainCounter  # noqa: E402
 from cv.mediapipe_adapter import hand_landmarks_from_result  # noqa: E402
 
 
@@ -100,11 +100,19 @@ class MediaPipeGestureNode(Node):
             self.confirmer.update(self.classifier.classify(None))
             return
         results = [self.classifier.classify(hand) for hand in hands]
-        names = {result.gesture for result in results}
+        actionable = [
+            result
+            for result in results
+            if result.gesture not in {Gesture.UNKNOWN, Gesture.NO_HAND_DETECTED}
+        ]
+        names = {result.gesture for result in actionable}
+        # A partially detected second hand should not suppress a clear
+        # one-hand task/confirmation gesture. Two conflicting actionable
+        # gestures remain ambiguous and are rejected.
         if len(names) != 1:
             self.confirmer.update(self.classifier.classify(None))
             return
-        confirmed = self.confirmer.update(results[0])
+        confirmed = self.confirmer.update(actionable[0])
         if not confirmed.confirmed:
             return
         message = String()

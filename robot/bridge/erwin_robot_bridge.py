@@ -28,7 +28,7 @@ from std_msgs.msg import String
 
 from hri import HriCoordinator
 from hri.sensor_adapters import SensorEventAdapter
-from hri.hri_state_machine import HriSession, HriState
+from hri.hri_state_machine import AssistanceType, HriSession, HriState
 
 
 DISPLAY_STATE_BY_HRI: dict[HriState, str] = {
@@ -335,6 +335,7 @@ class ErwinRobotBridge(Node):
         self.active_goal_handle = None
         self.hri_measurement_session_id: str | None = None
         self.hri_pain_recorded_session_id: str | None = None
+        self.hri_session_count = 0
         self.pending_command_id: str | None = None
         self.robot_status = "home"
         self.navigation_goal_generation = 0
@@ -348,7 +349,8 @@ class ErwinRobotBridge(Node):
         sensor_setup_duration = float(os.getenv("ERWIN_SENSOR_SETUP_DURATION_SECONDS", "10"))
         input_timeout = float(os.getenv("ERWIN_INPUT_TIMEOUT_SECONDS", "10"))
         passive_timeout = float(os.getenv("ERWIN_PASSIVE_STATE_TIMEOUT_SECONDS", "2"))
-        mock_heart_rate = float(os.getenv("ERWIN_MOCK_HEART_RATE_BPM", "72"))
+        mock_heart_rate_min = int(os.getenv("ERWIN_MOCK_HEART_RATE_MIN_BPM", "75"))
+        mock_heart_rate_max = int(os.getenv("ERWIN_MOCK_HEART_RATE_MAX_BPM", "105"))
         self.hri_coordinator = HriCoordinator(
             RosDisplayAdapter(self.display_publisher, self.get_logger()),
             breathing_duration_seconds=breathing_duration,
@@ -358,7 +360,8 @@ class ErwinRobotBridge(Node):
             sensor_setup_duration_seconds=sensor_setup_duration,
             input_timeout_seconds=input_timeout,
             passive_state_timeout_seconds=passive_timeout,
-            mock_heart_rate_bpm=mock_heart_rate,
+            mock_heart_rate_min_bpm=mock_heart_rate_min,
+            mock_heart_rate_max_bpm=mock_heart_rate_max,
         )
         self.sensor_adapter = SensorEventAdapter(self.hri_coordinator)
         self.restore_persisted_state()
@@ -706,10 +709,16 @@ class ErwinRobotBridge(Node):
                     self.database.update_session(session_id, "navigating", "interacting")
                     self.robot_status = "at_seat"
                     self.database.update_robot_state(self.robot_id, "at_seat", session_id)
-                    hri_state = self.hri_coordinator.start(session_id)
+                    fallback_task = (
+                        AssistanceType.VITALS
+                        if self.hri_session_count % 2 == 0
+                        else AssistanceType.BREATHING
+                    )
+                    self.hri_session_count += 1
+                    hri_state = self.hri_coordinator.start(session_id, fallback_task)
                     self.get_logger().info(
                         f"Session {session_id} arrived; HRI state={hri_state.value}; "
-                        "robot remains at seat until HRI completion, NEXT, or HOME"
+                        f"fallback={fallback_task.value}; robot remains at seat until HRI completion, NEXT, or HOME"
                     )
                 else:
                     self.robot_status = "home"
