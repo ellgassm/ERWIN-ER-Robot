@@ -1,8 +1,9 @@
 # ERWIN isolated sensor development
 
-This directory is deliberately separate from the active robot lifecycle,
-navigation bridge, display package, and production HRI state machine. It
-contains hardware-independent prototype components and tests only.
+This directory remains separate from ROS2, the navigation bridge, display
+package, and HRI transition logic. Its hardware-independent sensor components
+now feed the HRI boundary through normalized result objects and the bridge's
+documented JSON sensor topics.
 
 ## PPG pipeline
 
@@ -55,23 +56,26 @@ Supported outputs are `ONE`, `TWO`, `THREE`, `FOUR`, `FIVE`, `THUMBS_UP`,
 `THUMBS_DOWN`, `UNKNOWN`, and `NO_HAND_DETECTED`. `TemporalGestureConfirmer`
 requires repeated high-confidence observations before confirming a gesture.
 
-The classifier is a lightweight controlled-environment prototype, not a full
-camera model. Physical camera testing and landmark-model selection remain
-future Raspberry Pi work.
+The classifier is a lightweight controlled-environment classifier. The
+`cv/mediapipe_adapter.py` boundary accepts MediaPipe HandLandmarker results,
+including up to two hands, without making MediaPipe a required dependency of
+the test suite. Physical camera capture, model installation, and ROS2
+publishing remain Raspberry Pi work.
 
-## Future HRI integration
+## HRI integration
 
-The integration layer should consume observations, for example:
+The robot bridge consumes normalized observations through the HRI adapter. The
+semantic mapping is:
 
 ```text
-HeartRateProcessor → HeartRateResult → HRI controller
-GestureClassifier  → GestureResult   → HRI controller
+HeartRateProcessor → HeartRateResult → `/erwin/hri/heart_rate`
+GestureClassifier  → GestureResult   → `/erwin/hri/gesture`
 ```
 
-The HRI controller—not these modules—decides whether `ONE` means vital
-reassessment, whether `TWO` means breathing exercise, or whether a finger
-count is a pain score. `HRIObservation` provides a neutral handoff shape for
-that future adapter.
+The HRI controller—not these modules—owns the transition rules. The bridge
+maps confirmed `ONE` to vitals, confirmed `TWO` to breathing, and confirmed
+thumbs-up/down to yes/no follow-ups. `TwoHandPainCounter` supplies a stable
+0–10 candidate for the same pain event that the phone can submit.
 
 ## Tests
 

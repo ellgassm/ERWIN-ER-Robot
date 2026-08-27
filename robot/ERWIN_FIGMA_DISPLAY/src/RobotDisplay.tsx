@@ -21,6 +21,8 @@ import NavigatingScreen from "@/screens/NavigatingScreen";
 import ArrivingScreen from "@/screens/ArrivingScreen";
 import GreetingScreen from "@/screens/GreetingScreen";
 import AssistanceSelectionScreen from "@/screens/AssistanceSelectionScreen";
+import FollowupScreen from "@/screens/FollowupScreen";
+import DisplayVitalsScreen from "@/screens/DisplayVitalsScreen";
 import SensorSetupScreen from "@/screens/SensorSetupScreen";
 import MeasuringHeartRateScreen from "@/screens/MeasuringHeartRateScreen";
 import PainScaleScreen from "@/screens/PainScaleScreen";
@@ -39,6 +41,8 @@ export default function RobotDisplay({
   estimatedWait,
   // greeting
   patientName,
+  otherAssistance,
+  painLevel,
   // choosing_assistance
   onAssistanceSelected,
   // measuring_heart_rate
@@ -80,6 +84,15 @@ export default function RobotDisplay({
           onAssistanceSelected={onAssistanceSelected ?? (() => {})}
         />
       );
+
+    case "ask_breathing_followup":
+      return <FollowupScreen otherAssistance="breathing" />;
+
+    case "ask_vitals_followup":
+      return <FollowupScreen otherAssistance="vitals" />;
+
+    case "display_vitals":
+      return <DisplayVitalsScreen heartRate={heartRate} painLevel={painLevel} />;
 
     case "sensor_setup":
       return <SensorSetupScreen />;

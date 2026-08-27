@@ -40,7 +40,7 @@ class HriSessionTests(unittest.TestCase):
         self.assertEqual(session.handle(HriEvent(HriEventType.PAIN_RECORDED)), HriState.HEART_RATE_MEASUREMENT)
         self.assertEqual(
             session.handle(HriEvent(HriEventType.HEART_RATE_RECORDED)),
-            HriState.REVIEW,
+            HriState.DISPLAY_VITALS,
         )
         self.assertEqual(session.handle(HriEvent(HriEventType.COMPLETE)), HriState.COMPLETE)
 

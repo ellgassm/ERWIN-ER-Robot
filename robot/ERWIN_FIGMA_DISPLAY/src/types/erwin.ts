@@ -13,6 +13,9 @@ export type ErwinDisplayState =
   | "arriving"
   | "greeting"
   | "choosing_assistance"
+  | "ask_breathing_followup"
+  | "ask_vitals_followup"
+  | "display_vitals"
   | "sensor_setup"
   | "measuring_heart_rate"
   | "breathing_exercise"
@@ -26,6 +29,8 @@ export interface DisplayStateMessage {
   version: 1;
   state: ErwinDisplayState;
   session_id?: string | null;
+  pain_level?: number | null;
+  heart_rate?: number | null;
 }
 
 // ─── Screen Props ─────────────────────────────────────────────────────────────
@@ -62,6 +67,15 @@ export interface AssistanceSelectionScreenProps {
    * Emit this event when a selection is made; do NOT implement routing logic here.
    */
   onAssistanceSelected: (type: "vitals" | "breathing") => void;
+}
+
+export interface FollowupScreenProps {
+  otherAssistance: "vitals" | "breathing";
+}
+
+export interface DisplayVitalsScreenProps {
+  heartRate?: number | null;
+  painLevel?: number | null;
 }
 
 export interface SensorSetupScreenProps {
@@ -153,6 +167,9 @@ export interface ScreenPropsMap {
   arriving: ArrivingScreenProps;
   greeting: GreetingScreenProps;
   choosing_assistance: AssistanceSelectionScreenProps;
+  ask_breathing_followup: FollowupScreenProps;
+  ask_vitals_followup: FollowupScreenProps;
+  display_vitals: DisplayVitalsScreenProps;
   sensor_setup: SensorSetupScreenProps;
   measuring_heart_rate: MeasuringHeartRateScreenProps;
   breathing_exercise: BreathingExerciseScreenProps;
@@ -180,6 +197,10 @@ export interface RobotDisplayProps {
 
   // choosing_assistance
   onAssistanceSelected?: (type: "vitals" | "breathing") => void;
+
+  // follow-up/display states are output-only; CV supplies the response
+  otherAssistance?: "vitals" | "breathing";
+  painLevel?: number | null;
 
   // measuring_heart_rate
   heartRate?: number | null;

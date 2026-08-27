@@ -8,12 +8,13 @@ import { patientRepository } from "@/data/supabase/patient-repository";
 import { sessionRepository } from "@/data/supabase/session-repository";
 import { triageRepository } from "@/data/supabase/triage-repository";
 import { useSession } from "./use-session";
+import { useRobotHriState } from "./use-robot-hri-state";
 
 interface Props {
   location: WaitingLocation;
 }
 
-type Screen = "identify" | "waiting" | "choose" | "pain" | "heart-rate" | "review" | "complete";
+type Screen = "identify" | "waiting" | "choose" | "pain" | "processing" | "heart-rate" | "review" | "complete";
 type MeasurementPlan = Array<"pain" | "heart_rate">;
 
 const SESSION_STORAGE_KEY_PREFIX = "erwin.patient.session-id";
@@ -46,13 +47,15 @@ export default function PatientSessionPage({ location }: Props) {
   const [baseline, setBaseline] = useState<{ pain?: number; heart_rate?: number }>({});
 
   const { session, queuePosition, loading, error: sessionError } = useSession(sessionId);
+  const robotHriState = useRobotHriState(sessionId);
 
   useEffect(() => {
     if (!session) return;
-    if (session.status === "interacting" && screen === "waiting") setScreen("choose");
+    if (session.status === "interacting" && screen === "waiting") setScreen("processing");
+    if (session.status === "interacting" && robotHriState === "pain_scale" && screen === "processing") setScreen("pain");
     if (session.status === "review") setScreen("review");
     if (session.status === "completed" || session.status === "cancelled") setScreen("complete");
-  }, [screen, session]);
+  }, [robotHriState, screen, session]);
 
   useEffect(() => {
     if (screen !== "review" || !session?.patientId) return;
@@ -125,7 +128,7 @@ export default function PatientSessionPage({ location }: Props) {
       const nextRecorded = new Set(recordedTypes);
       nextRecorded.add(type);
       setRecordedTypes(nextRecorded);
-      if (type === "pain" && plan.includes("heart_rate")) setScreen("heart-rate");
+      if (type === "pain") setScreen("processing");
       else if (type === "heart_rate" && plan.includes("pain") && !nextRecorded.has("pain")) setScreen("pain");
       else {
         await sessionRepository.updateStatus(sessionId, "review");
@@ -214,12 +217,8 @@ export default function PatientSessionPage({ location }: Props) {
           <div className="min-w-0 rounded-3xl border border-border bg-card p-6 shadow-sm">
             <CheckCircle2 size={42} className="mb-4 text-accent" />
             <h1 className="text-3xl font-black">ERWIN has arrived</h1>
-            <p className="mt-2 text-muted-foreground">Choose an interaction to complete while you wait.</p>
-            <div className="mt-6 space-y-3">
-              <button type="button" onClick={() => choosePlan(["pain"])} className="h-14 w-full rounded-2xl bg-primary font-black text-primary-foreground">Pain scale</button>
-              <button type="button" onClick={() => choosePlan(["heart_rate"])} className="h-14 w-full rounded-2xl border border-border font-black">Heart-rate check</button>
-              <button type="button" onClick={() => choosePlan(["pain", "heart_rate"])} className="h-14 w-full rounded-2xl border border-border font-black">Both checks</button>
-            </div>
+            <p className="mt-2 text-muted-foreground">ERWIN will guide you through the check. Use your phone to rate your pain when prompted.</p>
+            <button type="button" onClick={() => choosePlan(["pain"])} className="mt-6 h-14 w-full rounded-2xl bg-primary font-black text-primary-foreground">Rate pain</button>
           </div>
         )}
 
@@ -228,7 +227,15 @@ export default function PatientSessionPage({ location }: Props) {
             <h1 className="text-3xl font-black">How is your pain?</h1>
             <p className="mt-2 text-muted-foreground">Tap the number that best describes how you feel right now.</p>
             <div className="mt-7 grid grid-cols-6 gap-2">{Array.from({ length: 11 }, (_, value) => <button key={value} type="button" onClick={() => setPain(value)} className={`h-11 rounded-full border-2 font-black ${pain === value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}>{value}</button>)}</div>
-            <button type="button" disabled={pain === null} onClick={() => pain !== null && void saveMeasurement("pain", pain)} className="mt-7 h-14 w-full rounded-2xl bg-primary font-black text-primary-foreground disabled:opacity-40">Save pain score</button>
+            <button type="button" disabled={pain === null} onClick={() => pain !== null && void saveMeasurement("pain", pain)} className="mt-7 h-14 w-full rounded-2xl bg-primary font-black text-primary-foreground disabled:opacity-40">Rate pain</button>
+          </div>
+        )}
+
+        {screen === "processing" && (
+          <div className="min-w-0 rounded-3xl border border-border bg-card p-7 text-center shadow-sm">
+            <div className="mx-auto mb-5 flex h-20 w-20 animate-pulse items-center justify-center rounded-full bg-secondary"><HeartPulse size={34} className="text-primary" /></div>
+            <h1 className="text-3xl font-black">ERWIN is with you</h1>
+            <p className="mt-3 text-muted-foreground">Please follow the instructions on the robot. Your phone will show a pain rating only when ERWIN asks for it.</p>
           </div>
         )}
 

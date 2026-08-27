@@ -27,6 +27,7 @@ class HandLandmarks:
     """Normalized MediaPipe-like hand landmarks, indexed 0 through 20."""
 
     points: tuple[Point, ...]
+    handedness: str | None = None
 
 
 class ObservationType(str, Enum):

@@ -37,6 +37,15 @@ class GestureResult:
     confirmed: bool = False
 
 
+@dataclass(frozen=True)
+class FingerCountResult:
+    """Stable-ready finger count for pain input across one or two hands."""
+
+    count: int
+    confidence: float
+    timestamp: float
+
+
 def _distance(a: Point, b: Point) -> float:
     return math.hypot(a.x - b.x, a.y - b.y)
 
@@ -70,12 +79,73 @@ class GestureClassifier:
         confidence = min(1.0, 0.6 + 0.1 * count)
         return GestureResult(gestures[count], confidence, now)
 
+    def count_fingers(self, landmarks: HandLandmarks | None) -> tuple[int, float]:
+        """Return a best-effort 0–5 count for a single MediaPipe hand.
+
+        Task-choice and confirmation gestures continue to use ``classify``.
+        This separate method exists because pain input needs the thumb as well
+        as the four finger landmarks and may combine two hands.
+        """
+        if landmarks is None or len(landmarks.points) != 21:
+            return 0, 0.0
+        points = landmarks.points
+        extended = [self._is_extended(points, tip, pip, points[0]) for tip, pip in zip(self._tips, self._pips)]
+        thumb = self._thumb_is_extended(points, landmarks.handedness)
+        count = sum(extended) + int(thumb)
+        return count, 0.7 if count in range(6) else 0.0
+
     @staticmethod
     def _is_extended(points: tuple[Point, ...], tip_index: int, pip_index: int, wrist: Point) -> bool:
         tip = points[tip_index]
         pip = points[pip_index]
         return tip.y < pip.y - 0.025 and _distance(tip, wrist) > _distance(pip, wrist) * 1.02
 
+    @staticmethod
+    def _thumb_is_extended(points: tuple[Point, ...], handedness: str | None) -> bool:
+        # Handedness is useful metadata, but a distance/scale test is more
+        # stable than a fixed image-axis test when the hand rotates. Use the
+        # wrist-to-middle-MCP distance as the person's hand scale.
+        mcp, ip, tip, index_mcp, middle_mcp = points[2], points[3], points[4], points[5], points[9]
+        palm_scale = _distance(points[0], middle_mcp)
+        if palm_scale <= 0:
+            return False
+        reach = _distance(tip, points[0])
+        joint_reach = _distance(ip, points[0])
+        lateral_reach = _distance(tip, index_mcp)
+        # The handedness argument remains part of the contract for future
+        # handedness-specific tuning; the geometry works for either hand and
+        # for mirrored camera images.
+        _ = handedness
+        v1 = (mcp.x - ip.x, mcp.y - ip.y)
+        v2 = (tip.x - ip.x, tip.y - ip.y)
+        denominator = math.hypot(*v1) * math.hypot(*v2)
+        if denominator == 0:
+            return False
+        joint_angle = math.degrees(math.acos(max(-1.0, min(1.0, (v1[0] * v2[0] + v1[1] * v2[1]) / denominator))))
+        return (
+            reach > joint_reach * 1.01
+            and lateral_reach > palm_scale * 0.18
+            and joint_angle > 80.0
+        )
+
+
+class TwoHandPainCounter:
+    """Count raised fingers from up to two hands, yielding a 0–10 value."""
+
+    def __init__(self, classifier: GestureClassifier | None = None) -> None:
+        self.classifier = classifier or GestureClassifier()
+
+    def count(self, hands: tuple[HandLandmarks, ...] | list[HandLandmarks], timestamp: float | None = None) -> FingerCountResult:
+        now = time.time() if timestamp is None else timestamp
+        selected = tuple(hands[:2])
+        if not selected:
+            return FingerCountResult(0, 0.0, now)
+        counts = [self.classifier.count_fingers(hand) for hand in selected]
+        return FingerCountResult(
+            count=min(10, sum(item[0] for item in counts)),
+            confidence=min(item[1] for item in counts),
+            timestamp=now,
+        )
 
 class TemporalGestureConfirmer:
     """Require the same actionable gesture across consecutive observations."""

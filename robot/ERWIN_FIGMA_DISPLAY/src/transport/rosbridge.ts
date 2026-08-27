@@ -8,6 +8,7 @@ interface RosbridgePublishMessage {
 
 const DISPLAY_STATES = new Set<ErwinDisplayState>([
   "idle", "queued", "navigating", "arriving", "greeting", "choosing_assistance",
+  "ask_breathing_followup", "ask_vitals_followup", "display_vitals",
   "sensor_setup", "measuring_heart_rate", "breathing_exercise", "pain_scale",
   "processing", "complete", "review_alert", "returning_home",
 ]);
@@ -26,6 +27,8 @@ function parseDisplayMessage(raw: string): DisplayStateMessage | null {
       version: 1,
       state: payload.state,
       session_id: typeof payload.session_id === "string" ? payload.session_id : null,
+      pain_level: typeof payload.pain_level === "number" ? payload.pain_level : null,
+      heart_rate: typeof payload.heart_rate === "number" ? payload.heart_rate : null,
     };
   } catch {
     return null;

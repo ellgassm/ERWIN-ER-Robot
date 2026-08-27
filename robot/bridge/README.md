@@ -28,6 +28,42 @@ Bearer header for compatibility.
 
 The bridge reads `x`, `y`, and `yaw` from the session's `waiting_locations` row. It never contains seat coordinates. The observed navigation test indicates that this map's positive X axis points north and positive Y points west. Therefore `SEAT1` and `SEAT2` use the `map` frame and a west-facing yaw of `1.5707963267948966` radians, while the north-facing HOME pose uses yaw `0`.
 
+## HRI sensor event transport
+
+The bridge subscribes to these `std_msgs/msg/String` topics. Each message is a
+JSON object; sensor nodes do not need to import the HRI state-machine package.
+
+```text
+/erwin/hri/gesture       {"gesture":"ONE","confirmed":true,"confidence":0.9,"session_id":"..."}
+/erwin/hri/ppg_attached  {"attached":true,"session_id":"..."}
+/erwin/hri/heart_rate    {"bpm":72,"valid":true,"confidence":0.9,"session_id":"..."}
+/erwin/hri/pain          {"value":4,"session_id":"..."}
+```
+
+The topic names are configurable with `ERWIN_GESTURE_TOPIC`,
+`ERWIN_PPG_ATTACHED_TOPIC`, `ERWIN_HEART_RATE_TOPIC`, and `ERWIN_PAIN_TOPIC`.
+Events with a non-matching `session_id` are ignored. Gesture events must be
+confirmed, PPG results must be valid, and heart-rate confidence must meet the
+bridge threshold. The bridge accepts phone pain through the same semantic pain
+event path when a future phone/backend adapter publishes it.
+
+The support-PC MediaPipe node is `robot/sensors/mediapipe_gesture_node.py`.
+It subscribes to `/image_raw`, detects up to two hands, publishes confirmed
+gestures on `/erwin/hri/gesture`, and publishes stable two-hand pain counts on
+`/erwin/hri/pain_fingers`. Run it from the repository root with the MediaPipe
+virtual environment active:
+
+```bash
+source "$HOME/erwin-vision-venv/bin/activate"
+source /opt/ros/jazzy/setup.bash
+export ROS_DOMAIN_ID=2
+export ROS_LOCALHOST_ONLY=0
+python3 robot/sensors/mediapipe_gesture_node.py
+```
+
+The Pi camera publisher and the support-PC MediaPipe node must use the same
+ROS domain. The MediaPipe node does not publish navigation commands.
+
 The reported docked home pose is `(-0.02098032273352146, -0.028868287801742554)` in the `map` frame. Its north-facing yaw is `0` radians under the observed axis convention. This is represented by the `HOME` row in `waiting_locations`, and the bridge resolves that row for return navigation. The bridge does not use hardcoded home coordinates.
 
 ## Run
@@ -54,5 +90,6 @@ There is no physical display adapter in this checkpoint yet, so the existing
 phone interaction remains the active completion path. The bridge now publishes
 display-only JSON messages as `std_msgs/msg/String` on
 `/erwin/display_state`; the touchscreen package subscribes through rosbridge.
-The display remains output-only. CV, PPG, and phone input transports are not
-connected yet.
+The display remains output-only. The sensor event subscriptions are now wired
+at the bridge boundary; actual MediaPipe camera and Arduino/PPG device nodes
+remain hardware-specific follow-up work.

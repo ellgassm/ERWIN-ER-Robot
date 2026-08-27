@@ -27,6 +27,7 @@ from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import String
 
 from hri import HriCoordinator
+from hri.sensor_adapters import SensorEventAdapter
 from hri.hri_state_machine import HriSession, HriState
 
 
@@ -35,6 +36,13 @@ DISPLAY_STATE_BY_HRI: dict[HriState, str] = {
     HriState.SELECT_ASSISTANCE: "choosing_assistance",
     HriState.PAIN_INPUT: "pain_scale",
     HriState.HEART_RATE_MEASUREMENT: "measuring_heart_rate",
+    HriState.SENSOR_SETUP: "sensor_setup",
+    HriState.DISPLAY_VITALS: "display_vitals",
+    HriState.ASK_BREATHING_FOLLOWUP: "ask_breathing_followup",
+    HriState.BREATHING_EXERCISE: "breathing_exercise",
+    HriState.ASK_VITALS_FOLLOWUP: "ask_vitals_followup",
+    HriState.END_SESSION: "complete",
+    HriState.DISPATCH: "processing",
     HriState.REVIEW: "review_alert",
     HriState.COMPLETE: "complete",
 }
@@ -55,6 +63,8 @@ class RosDisplayAdapter:
                 "version": 1,
                 "state": display_state,
                 "session_id": session.session_id,
+                "pain_level": session.pain_level,
+                "heart_rate": session.heart_rate,
             }
         )
         self.publisher.publish(message)
@@ -174,6 +184,28 @@ class SupabaseRestClient:
         )
         return rows[0].get("status") if rows else None
 
+    def latest_measurement(self, session_id: str, measurement_type: str) -> float | None:
+        rows = self.request(
+            "GET",
+            "measurements",
+            {
+                "select": "value",
+                "session_id": f"eq.{session_id}",
+                "type": f"eq.{measurement_type}",
+                "order": "recorded_at.desc",
+                "limit": "1",
+            },
+        )
+        return float(rows[0]["value"]) if rows else None
+
+    def record_measurement(self, session_id: str, measurement_type: str, value: float) -> None:
+        self.request(
+            "POST",
+            "measurements",
+            {},
+            {"session_id": session_id, "type": measurement_type, "value": value},
+        )
+
     def get_robot_state(self, robot_id: str) -> dict[str, Any] | None:
         rows = self.request(
             "GET",
@@ -287,17 +319,48 @@ class ErwinRobotBridge(Node):
         self.action_client = ActionClient(self, NavigateToPose, "/navigate_to_pose")
         self.display_topic = os.getenv("ERWIN_DISPLAY_TOPIC", "/erwin/display_state")
         self.display_publisher = self.create_publisher(String, self.display_topic, 10)
+        self.gesture_topic = os.getenv("ERWIN_GESTURE_TOPIC", "/erwin/hri/gesture")
+        self.ppg_attached_topic = os.getenv("ERWIN_PPG_ATTACHED_TOPIC", "/erwin/hri/ppg_attached")
+        self.heart_rate_topic = os.getenv("ERWIN_HEART_RATE_TOPIC", "/erwin/hri/heart_rate")
+        self.pain_topic = os.getenv("ERWIN_PAIN_TOPIC", "/erwin/hri/pain")
+        self.pain_fingers_topic = os.getenv("ERWIN_PAIN_FINGERS_TOPIC", "/erwin/hri/pain_fingers")
+        self.create_subscription(String, self.gesture_topic, self.on_gesture, 10)
+        self.create_subscription(String, self.ppg_attached_topic, self.on_ppg_attached, 10)
+        self.create_subscription(String, self.heart_rate_topic, self.on_heart_rate, 10)
+        self.create_subscription(String, self.pain_topic, self.on_pain, 10)
+        self.create_subscription(String, self.pain_fingers_topic, self.on_pain_fingers, 10)
         self.active_session_id: str | None = None
         self.active_target: NavigationTarget | None = None
         self.active_mode: str | None = None
         self.active_goal_handle = None
+        self.hri_measurement_session_id: str | None = None
+        self.hri_pain_recorded_session_id: str | None = None
         self.pending_command_id: str | None = None
         self.robot_status = "home"
         self.navigation_goal_generation = 0
         self.retry_delay = float(os.getenv("ERWIN_RETRY_DELAY_SECONDS", "5"))
         self.retry_at: float | None = None
         self.retry_count = 0
-        self.hri_coordinator = HriCoordinator(RosDisplayAdapter(self.display_publisher, self.get_logger()))
+        breathing_duration = float(os.getenv("ERWIN_BREATHING_DURATION_SECONDS", "10"))
+        heart_rate_duration = float(os.getenv("ERWIN_MOCK_HEART_RATE_DURATION_SECONDS", "15"))
+        results_duration = float(os.getenv("ERWIN_RESULTS_DURATION_SECONDS", "5"))
+        completion_duration = float(os.getenv("ERWIN_COMPLETION_DURATION_SECONDS", "2"))
+        sensor_setup_duration = float(os.getenv("ERWIN_SENSOR_SETUP_DURATION_SECONDS", "10"))
+        input_timeout = float(os.getenv("ERWIN_INPUT_TIMEOUT_SECONDS", "10"))
+        passive_timeout = float(os.getenv("ERWIN_PASSIVE_STATE_TIMEOUT_SECONDS", "2"))
+        mock_heart_rate = float(os.getenv("ERWIN_MOCK_HEART_RATE_BPM", "72"))
+        self.hri_coordinator = HriCoordinator(
+            RosDisplayAdapter(self.display_publisher, self.get_logger()),
+            breathing_duration_seconds=breathing_duration,
+            heart_rate_duration_seconds=heart_rate_duration,
+            results_duration_seconds=results_duration,
+            completion_duration_seconds=completion_duration,
+            sensor_setup_duration_seconds=sensor_setup_duration,
+            input_timeout_seconds=input_timeout,
+            passive_state_timeout_seconds=passive_timeout,
+            mock_heart_rate_bpm=mock_heart_rate,
+        )
+        self.sensor_adapter = SensorEventAdapter(self.hri_coordinator)
         self.restore_persisted_state()
         self.publish_display_state("idle" if self.robot_status == "home" else "processing")
         self.timer = self.create_timer(self.poll_interval, self.poll_queue)
@@ -471,6 +534,45 @@ class ErwinRobotBridge(Node):
         if self.active_mode != "seat" or self.active_session_id is None or self.robot_status != "at_seat":
             return
         try:
+            self.hri_coordinator.tick()
+            if (
+                self.hri_coordinator.session is not None
+                and self.hri_coordinator.session.pain_level is not None
+                and self.hri_pain_recorded_session_id != self.active_session_id
+            ):
+                existing_pain = self.database.latest_measurement(self.active_session_id, "pain")
+                if existing_pain is None:
+                    self.database.record_measurement(
+                        self.active_session_id,
+                        "pain",
+                        self.hri_coordinator.session.pain_level,
+                    )
+                self.hri_pain_recorded_session_id = self.active_session_id
+            if self.hri_coordinator.state == HriState.COMPLETE and self.hri_coordinator.completion_ready():
+                self.database.update_session(self.active_session_id, "interacting", "completed")
+                self.complete_service_and_continue()
+                return
+            if (
+                self.hri_coordinator.state == HriState.DISPLAY_VITALS
+                and self.hri_coordinator.session is not None
+                and self.hri_coordinator.session.heart_rate is not None
+                and self.hri_measurement_session_id != self.active_session_id
+            ):
+                self.database.record_measurement(
+                    self.active_session_id,
+                    "heart_rate",
+                    self.hri_coordinator.session.heart_rate,
+                )
+                self.hri_measurement_session_id = self.active_session_id
+                self.get_logger().info(
+                    f"Recorded mock heart rate {self.hri_coordinator.session.heart_rate:g} BPM"
+                )
+            if self.hri_coordinator.state == HriState.PAIN_INPUT:
+                phone_pain = self.database.latest_measurement(self.active_session_id, "pain")
+                if phone_pain is not None and self.hri_coordinator.session is not None and self.hri_coordinator.session.pain_level is None:
+                    state = self.hri_coordinator.handle_pain(phone_pain)
+                    self.hri_pain_recorded_session_id = self.active_session_id
+                    self.get_logger().info(f"Phone pain override accepted; HRI state={state.value}")
             # Session completion is the current HRI completion event. The
             # browser writes completed after measurements/review; a future
             # robot HRI adapter can emit the same persisted transition.
@@ -620,6 +722,8 @@ class ErwinRobotBridge(Node):
                     self.active_target = None
                     self.active_mode = None
                     self.hri_coordinator.clear()
+                    self.hri_measurement_session_id = None
+                    self.hri_pain_recorded_session_id = None
             else:
                 if mode == "seat" and session_id is not None and result == GoalStatus.STATUS_ABORTED:
                     self.retry_count += 1
@@ -697,6 +801,75 @@ class ErwinRobotBridge(Node):
         message = String()
         message.data = json.dumps({"version": 1, "state": state, "session_id": session_id})
         self.display_publisher.publish(message)
+
+    def _sensor_payload(self, message: String) -> dict[str, Any]:
+        payload = json.loads(message.data)
+        if not isinstance(payload, dict):
+            raise ValueError("sensor payload must be a JSON object")
+        return payload
+
+    def _sensor_session_matches(self, payload: dict[str, Any]) -> bool:
+        session_id = payload.get("session_id")
+        return session_id is None or session_id == self.active_session_id
+
+    def on_gesture(self, message: String) -> None:
+        try:
+            payload = self._sensor_payload(message)
+            if not self._sensor_session_matches(payload) or self.active_session_id is None:
+                return
+            result = type("GestureEvent", (), payload)()
+            state = self.sensor_adapter.gesture(result)
+            if state is None:
+                return
+            self.get_logger().info(f"HRI gesture accepted; state={state.value}")
+        except (KeyError, TypeError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            self.get_logger().warning(f"Ignoring invalid HRI gesture: {error}")
+
+    def on_ppg_attached(self, message: String) -> None:
+        try:
+            payload = self._sensor_payload(message)
+            if payload.get("attached") is not True or not self._sensor_session_matches(payload):
+                return
+            state = self.hri_coordinator.handle_ppg_attached()
+            self.get_logger().info(f"PPG attached; HRI state={state.value}")
+        except (TypeError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            self.get_logger().warning(f"Ignoring invalid PPG attachment event: {error}")
+
+    def on_heart_rate(self, message: String) -> None:
+        try:
+            payload = self._sensor_payload(message)
+            if not self._sensor_session_matches(payload):
+                return
+            result = type("HeartRateEvent", (), payload)()
+            state = self.sensor_adapter.heart_rate(result)
+            if state is None:
+                return
+            self.database.record_measurement(self.active_session_id, "heart_rate", float(payload["bpm"]))
+            self.get_logger().info(f"Heart rate accepted; state={state.value}")
+        except (KeyError, TypeError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            self.get_logger().warning(f"Ignoring invalid heart-rate event: {error}")
+
+    def on_pain(self, message: String) -> None:
+        try:
+            payload = self._sensor_payload(message)
+            if not self._sensor_session_matches(payload):
+                return
+            state = self.hri_coordinator.handle_pain(float(payload["value"]))
+            self.get_logger().info(f"Pain input accepted; HRI state={state.value}")
+        except (KeyError, TypeError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            self.get_logger().warning(f"Ignoring invalid HRI pain input: {error}")
+
+    def on_pain_fingers(self, message: String) -> None:
+        try:
+            payload = self._sensor_payload(message)
+            if not self._sensor_session_matches(payload) or self.active_session_id is None:
+                return
+            result = type("PainFingerEvent", (), payload)()
+            state = self.sensor_adapter.pain_finger_count(result)
+            self.database.record_measurement(self.active_session_id, "pain", float(payload["value"]))
+            self.get_logger().info(f"Pain finger input accepted; state={state.value}")
+        except (KeyError, TypeError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            self.get_logger().warning(f"Ignoring invalid finger-count pain input: {error}")
 
 
 def main() -> None:

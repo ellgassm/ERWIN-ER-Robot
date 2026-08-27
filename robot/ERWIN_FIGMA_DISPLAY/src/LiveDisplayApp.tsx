@@ -17,7 +17,9 @@ export default function LiveDisplayApp() {
   return (
     <RobotDisplay
       state={message.state}
-      interactionMode="phone"
+      painLevel={message.pain_level}
+      heartRate={message.heart_rate}
+      interactionMode="robot_display"
     />
   );
 }

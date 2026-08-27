@@ -38,3 +38,8 @@ class ArduinoSerialPPGSource:
 class CameraSource(Protocol):
     def landmarks(self) -> Iterable[HandLandmarks | None]:
         """Yield landmarks from a physical or recorded camera adapter."""
+
+
+class MultiHandCameraSource(Protocol):
+    def landmarks(self) -> Iterable[tuple[HandLandmarks, ...]]:
+        """Yield zero, one, or two hands from each camera frame."""

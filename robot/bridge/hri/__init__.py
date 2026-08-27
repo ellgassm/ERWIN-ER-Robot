@@ -8,6 +8,7 @@ from .hri_state_machine import (
     HriState,
 )
 from .coordinator import HriCoordinator
+from .sensor_adapters import SensorEventAdapter
 
 __all__ = [
     "AssistanceType",
@@ -16,4 +17,5 @@ __all__ = [
     "HriSession",
     "HriState",
     "HriCoordinator",
+    "SensorEventAdapter",
 ]
