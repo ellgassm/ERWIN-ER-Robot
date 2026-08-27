@@ -18,6 +18,7 @@ export SUPABASE_SERVICE_ROLE_KEY="<server-only-key-or-sb_secret-key>"
 export ERWIN_NAVIGATION_FRAME="map"
 export ERWIN_POLL_INTERVAL_SECONDS="2"
 export ERWIN_RETRY_DELAY_SECONDS="5"
+export ERWIN_DISPLAY_TOPIC="/erwin/display_state"
 export ROBOT_ID="erwin-1"
 ```
 
@@ -42,3 +43,16 @@ python3 /home/user/ERWIN/robot/bridge/erwin_robot_bridge.py
 Before running with a real robot, verify Nav2 and the map/localization stack are already active and confirm the database coordinates are safe for the loaded map. The bridge marks a session `navigating` only after the Nav2 action server is available, and marks it `interacting` only after Nav2 reports success. If Nav2 returns `STATUS_ABORTED`, the bridge retains the assignment and resends the same goal after `ERWIN_RETRY_DELAY_SECONDS`; it does not mark the patient session cancelled. At arrival it persists robot state `at_seat` and holds the assignment. When the existing HRI flow marks the session `completed`, the bridge persists `service_complete`, evaluates the FIFO queue, and autonomously navigates to the next request or the database-backed `HOME` row if the queue is empty. A HOME override during seat navigation first cancels the active Nav2 goal and cancels the associated session before returning home.
 
 For optional demo overrides, open `/operator`. `NEXT` skips/releases the active service and invokes the normal queue evaluation; `HOME` returns to base. These commands are not required for normal autonomous operation. The screen is intentionally unauthenticated for the hackathon prototype and must not be exposed to real patient data.
+
+## HRI boundary
+
+After confirmed seat arrival, the bridge initializes the UI-independent HRI
+state machine in `hri/hri_state_machine.py` and logs its initial
+`select_assistance` state. The state machine exposes domain events and the
+`hri/ports.py` display/input protocols; it does not import ROS2 or React.
+There is no physical display adapter in this checkpoint yet, so the existing
+phone interaction remains the active completion path. The bridge now publishes
+display-only JSON messages as `std_msgs/msg/String` on
+`/erwin/display_state`; the touchscreen package subscribes through rosbridge.
+The display remains output-only. CV, PPG, and phone input transports are not
+connected yet.

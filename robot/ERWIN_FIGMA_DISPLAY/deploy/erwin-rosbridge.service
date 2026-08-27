@@ -1,0 +1,14 @@
+[Unit]
+Description=ERWIN rosbridge WebSocket server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=ROS_DOMAIN_ID=2
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source /home/user/turtlebot3_ws/install/setup.bash && exec ros2 launch rosbridge_server rosbridge_websocket_launch.xml'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
