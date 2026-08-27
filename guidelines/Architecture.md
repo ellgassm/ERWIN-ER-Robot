@@ -76,6 +76,8 @@ The current `supabase/schema.sql` is the data-model baseline. Security policies 
 
 `src/shared/contracts/robot.ts` defines application-level robot contracts. `robot/bridge/erwin_robot_bridge.py` claims the oldest queued assignment through Supabase REST, resolves its database-backed `NavigationTarget`, sends a standard Nav2 `NavigateToPose` goal, and writes the actual action result back to Supabase. ROS2 topics, actions, map files, sensor drivers, and TurtleBot-specific details belong only in this bridge.
 
+The bridge persists one `robotics.robot_states` row per robot and polls `robotics.robot_commands` for optional `NEXT` and `HOME` overrides. A successful seat navigation changes the session to `interacting` and the robot to `at_seat`; the active assignment is intentionally retained. When the session becomes `completed` or `cancelled`, the bridge records `service_complete`, evaluates the persistent FIFO queue, and autonomously dispatches the next request or returns home when the queue is empty. `NEXT` releases/skips the current service and invokes that same queue-evaluation path; `HOME` is a safety override that sends the documented home pose through Nav2.
+
 The navigation target contains `locationId`, `mapId`, `x`, `y`, and `yaw`. These values come from waiting-location data, never from patient-facing components.
 
 ## Shared domain types
@@ -85,11 +87,24 @@ The navigation target contains `locationId`, `mapId`, `x`, `y`, and `yaw`. These
 `src/shared/session.ts` centralizes the session lifecycle:
 
 ```text
-requested -> queued -> navigating -> interacting -> measuring -> review -> completed
+ requested -> queued -> navigating -> interacting -> measuring -> review -> completed
                                                        \-> cancelled
 ```
 
 The lifecycle is a shared contract. The patient application displays the persisted lifecycle, while the support-PC bridge owns the `queued` → `navigating` → `interacting` transition based on actual Nav2 availability and action results. Patient interaction owns the later measurement/review/completion transitions for this phase.
+
+The robot lifecycle is separate from the session lifecycle:
+
+```text
+home -> going_to_seat -> at_seat -> service_complete
+                                      ├-> going_to_seat (next queued request)
+                                      └-> returning_home -> home (queue empty)
+
+at_seat -> service_complete (NEXT override)
+at_seat -> returning_home -> home (HOME override)
+```
+
+`at_seat` is persistent and does not advance merely because Nav2 succeeded. The current HRI completion event is the patient session becoming `completed` after the existing measurement/review flow. The demo-only `/operator` route inserts optional override commands into Supabase; it is unauthenticated and must not be used with real patient data.
 
 ## Environment configuration
 
@@ -124,7 +139,7 @@ The real `.env.local` remains ignored by Git.
 - Added patient, session, measurement, and triage repositories.
 - Added optional identified-patient creation and anonymous session creation.
 - Added session polling, queue position display, cancellation, refresh persistence, and understandable error states.
-- Added the support-PC ROS2/Nav2 bridge; physical navigation remains unverified until the bridge is run in the configured TurtleBot3 environment.
+- Added the support-PC ROS2/Nav2 bridge with autonomous queue progression and database-backed HOME resolution; physical navigation remains unverified until the bridge is run in the configured TurtleBot3 environment.
 - Added pain-scale and controlled mock heart-rate measurement recording.
 - Added baseline lookup and simple non-clinical comparison display.
 
@@ -140,6 +155,6 @@ The real `.env.local` remains ignored by Git.
 
 1. Foundation and environment
 2. Real QR/location resolution
-3. Persistent patient workflow, queue, measurements, and mock robot — this phase
+3. Persistent patient workflow, queue, measurements, and robot orchestration — this phase
 4. TurtleBot3/ROS2/Nav2 integration and controlled physical verification
 5. Production authorization and staff review
