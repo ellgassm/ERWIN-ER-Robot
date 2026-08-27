@@ -172,6 +172,22 @@ VALUES (
 )
 ON CONFLICT (location_code) DO NOTHING;
 
+-- Docked robot home pose. This is robot configuration, not a patient QR
+-- destination. Positive X is north on the current map, so yaw 0 faces north.
+INSERT INTO robotics.waiting_locations (
+    location_code, name, map_id, x, y, yaw
+)
+VALUES (
+    'HOME', 'TurtleBot Home Dock', 'er_map', -0.02098032273352146, -0.028868287801742554, 0.0
+)
+ON CONFLICT (location_code) DO UPDATE
+SET
+    name = EXCLUDED.name,
+    map_id = EXCLUDED.map_id,
+    x = EXCLUDED.x,
+    y = EXCLUDED.y,
+    yaw = EXCLUDED.yaw;
+
 -- Current SLAM-map seat targets.
 -- Coordinates are expressed in the `map` frame. Based on the observed
 -- navigation test, +x points north and +y points west on this map. Therefore

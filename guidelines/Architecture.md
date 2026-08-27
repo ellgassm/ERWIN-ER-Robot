@@ -139,7 +139,7 @@ The real `.env.local` remains ignored by Git.
 - Added patient, session, measurement, and triage repositories.
 - Added optional identified-patient creation and anonymous session creation.
 - Added session polling, queue position display, cancellation, refresh persistence, and understandable error states.
-- Added the support-PC ROS2/Nav2 bridge; physical navigation remains unverified until the bridge is run in the configured TurtleBot3 environment.
+- Added the support-PC ROS2/Nav2 bridge with autonomous queue progression and database-backed HOME resolution; physical navigation remains unverified until the bridge is run in the configured TurtleBot3 environment.
 - Added pain-scale and controlled mock heart-rate measurement recording.
 - Added baseline lookup and simple non-clinical comparison display.
 
@@ -155,6 +155,6 @@ The real `.env.local` remains ignored by Git.
 
 1. Foundation and environment
 2. Real QR/location resolution
-3. Persistent patient workflow, queue, measurements, and mock robot — this phase
+3. Persistent patient workflow, queue, measurements, and robot orchestration — this phase
 4. TurtleBot3/ROS2/Nav2 integration and controlled physical verification
 5. Production authorization and staff review
