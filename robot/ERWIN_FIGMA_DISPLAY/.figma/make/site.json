@@ -1,0 +1,10 @@
+{
+  "description": "Enhancing patient experience in emergency rooms, this interface for ERWIN the robot provides clear communication and assistance through a friendly, animated display.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
