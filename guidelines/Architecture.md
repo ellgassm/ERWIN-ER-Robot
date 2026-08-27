@@ -142,6 +142,9 @@ The real `.env.local` remains ignored by Git.
 - Added the support-PC ROS2/Nav2 bridge with autonomous queue progression and database-backed HOME resolution; physical navigation remains unverified until the bridge is run in the configured TurtleBot3 environment.
 - Added pain-scale and controlled mock heart-rate measurement recording.
 - Added baseline lookup and simple non-clinical comparison display.
+- Added the first robot-side HRI boundary: a UI-independent in-memory HRI
+  state machine initialized after confirmed seat arrival, with display/input
+  adapter protocols kept separate from ROS2 and React.
 
 ## Planned for future phases
 

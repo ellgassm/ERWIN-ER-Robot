@@ -25,6 +25,8 @@ from rclpy.action import ActionClient
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 
+from hri import HriCoordinator
+
 
 @dataclass(frozen=True)
 class NavigationTarget:
@@ -260,6 +262,7 @@ class ErwinRobotBridge(Node):
         self.retry_delay = float(os.getenv("ERWIN_RETRY_DELAY_SECONDS", "5"))
         self.retry_at: float | None = None
         self.retry_count = 0
+        self.hri_coordinator = HriCoordinator()
         self.restore_persisted_state()
         self.timer = self.create_timer(self.poll_interval, self.poll_queue)
         self.get_logger().info(
@@ -564,8 +567,10 @@ class ErwinRobotBridge(Node):
                     self.database.update_session(session_id, "navigating", "interacting")
                     self.robot_status = "at_seat"
                     self.database.update_robot_state(self.robot_id, "at_seat", session_id)
+                    hri_state = self.hri_coordinator.start(session_id)
                     self.get_logger().info(
-                        f"Session {session_id} arrived; robot remains at seat until NEXT or HOME"
+                        f"Session {session_id} arrived; HRI state={hri_state.value}; "
+                        "robot remains at seat until HRI completion, NEXT, or HOME"
                     )
                 else:
                     self.robot_status = "home"
@@ -576,6 +581,7 @@ class ErwinRobotBridge(Node):
                     self.active_session_id = None
                     self.active_target = None
                     self.active_mode = None
+                    self.hri_coordinator.clear()
             else:
                 if mode == "seat" and session_id is not None and result == GoalStatus.STATUS_ABORTED:
                     self.retry_count += 1
@@ -646,6 +652,7 @@ class ErwinRobotBridge(Node):
         self.active_session_id = None
         self.active_target = None
         self.active_mode = None
+        self.hri_coordinator.clear()
         self.pending_command_id = None
 
 
