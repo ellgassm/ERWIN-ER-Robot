@@ -173,3 +173,58 @@ The patient's phone is a separate web application. They are never the same compo
 ## Development preview
 
 Run `pnpm dev` (or the project's Vite dev command). The preview board renders all states simultaneously plus a live screen selector at the top of the page.
+
+## Live robot display
+
+The default entrypoint is the output-only kiosk display. It subscribes to the
+ROS topic `/erwin/display_state` through rosbridge. Configure the rosbridge
+WebSocket endpoint before building or running the kiosk:
+
+```bash
+export VITE_ROSBRIDGE_URL="ws://<robot-or-support-pc>:9090"
+export VITE_ERWIN_DISPLAY_TOPIC="/erwin/display_state"
+pnpm dev --host 0.0.0.0
+```
+
+Append `?preview` to the URL to open the design preview board. The display
+application does not send touch or HRI input events; those are supplied by CV,
+PPG, and the patient phone through future controller adapters.
+
+## Raspberry Pi kiosk deployment
+
+The deployment files in `deploy/` host the built display locally and launch it
+in browser kiosk mode. They must be copied to the robot Raspberry Pi; they are
+not run on the support PC.
+
+After copying `dist/` and `deploy/` to `/home/user/robot-display/` on the Pi:
+
+```bash
+chmod +x /home/user/robot-display/deploy/erwin-display-kiosk.sh
+mkdir -p ~/.config/systemd/user
+cp /home/user/robot-display/deploy/erwin-display-kiosk.service \
+  ~/.config/systemd/user/erwin-display-kiosk.service
+cp /home/user/robot-display/deploy/erwin-rosbridge.service \
+  ~/.config/systemd/user/erwin-rosbridge.service
+systemctl --user daemon-reload
+systemctl --user enable --now erwin-rosbridge.service
+systemctl --user enable --now erwin-display-kiosk.service
+```
+
+The service assumes the Pi runs a graphical desktop session as `user` and has
+Chromium or Firefox installed. For desktop environments where a user service
+starts before the graphical session is ready, use the desktop autostart file
+instead:
+
+```bash
+mkdir -p ~/.config/autostart
+cp /home/user/robot-display/deploy/erwin-display-kiosk.desktop \
+  ~/.config/autostart/erwin-display-kiosk.desktop
+systemctl --user disable --now erwin-display-kiosk.service
+```
+
+The desktop autostart launches after the graphical session establishes the
+correct `DISPLAY` and authentication context. Adjust the browser name in the
+launcher only if the Pi does not have Chromium or Firefox installed.
+
+The display WebSocket client retries automatically if rosbridge starts after
+the kiosk, so a boot-time race does not leave the screen permanently idle.

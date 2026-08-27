@@ -18,6 +18,7 @@ export SUPABASE_SERVICE_ROLE_KEY="<server-only-key-or-sb_secret-key>"
 export ERWIN_NAVIGATION_FRAME="map"
 export ERWIN_POLL_INTERVAL_SECONDS="2"
 export ERWIN_RETRY_DELAY_SECONDS="5"
+export ERWIN_DISPLAY_TOPIC="/erwin/display_state"
 export ROBOT_ID="erwin-1"
 ```
 
@@ -50,6 +51,8 @@ state machine in `hri/hri_state_machine.py` and logs its initial
 `select_assistance` state. The state machine exposes domain events and the
 `hri/ports.py` display/input protocols; it does not import ROS2 or React.
 There is no physical display adapter in this checkpoint yet, so the existing
-phone interaction remains the active completion path. The HRI state machine
-must not be treated as complete until a real display/input adapter is wired to
-it.
+phone interaction remains the active completion path. The bridge now publishes
+display-only JSON messages as `std_msgs/msg/String` on
+`/erwin/display_state`; the touchscreen package subscribes through rosbridge.
+The display remains output-only. CV, PPG, and phone input transports are not
+connected yet.

@@ -24,8 +24,41 @@ from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import String
 
 from hri import HriCoordinator
+from hri.hri_state_machine import HriSession, HriState
+
+
+DISPLAY_STATE_BY_HRI: dict[HriState, str] = {
+    HriState.GREETING: "greeting",
+    HriState.SELECT_ASSISTANCE: "choosing_assistance",
+    HriState.PAIN_INPUT: "pain_scale",
+    HriState.HEART_RATE_MEASUREMENT: "measuring_heart_rate",
+    HriState.REVIEW: "review_alert",
+    HriState.COMPLETE: "complete",
+}
+
+
+class RosDisplayAdapter:
+    """Publish display-only state messages for the robot kiosk."""
+
+    def __init__(self, publisher, logger) -> None:
+        self.publisher = publisher
+        self.logger = logger
+
+    def show(self, session: HriSession, state: HriState) -> None:
+        display_state = DISPLAY_STATE_BY_HRI[state]
+        message = String()
+        message.data = json.dumps(
+            {
+                "version": 1,
+                "state": display_state,
+                "session_id": session.session_id,
+            }
+        )
+        self.publisher.publish(message)
+        self.logger.info(f"Display state: {display_state} session={session.session_id}")
 
 
 @dataclass(frozen=True)
@@ -252,6 +285,8 @@ class ErwinRobotBridge(Node):
         self.robot_id = os.getenv("ROBOT_ID") or "erwin-1"
         self.poll_interval = float(os.getenv("ERWIN_POLL_INTERVAL_SECONDS", "2"))
         self.action_client = ActionClient(self, NavigateToPose, "/navigate_to_pose")
+        self.display_topic = os.getenv("ERWIN_DISPLAY_TOPIC", "/erwin/display_state")
+        self.display_publisher = self.create_publisher(String, self.display_topic, 10)
         self.active_session_id: str | None = None
         self.active_target: NavigationTarget | None = None
         self.active_mode: str | None = None
@@ -262,8 +297,9 @@ class ErwinRobotBridge(Node):
         self.retry_delay = float(os.getenv("ERWIN_RETRY_DELAY_SECONDS", "5"))
         self.retry_at: float | None = None
         self.retry_count = 0
-        self.hri_coordinator = HriCoordinator()
+        self.hri_coordinator = HriCoordinator(RosDisplayAdapter(self.display_publisher, self.get_logger()))
         self.restore_persisted_state()
+        self.publish_display_state("idle" if self.robot_status == "home" else "processing")
         self.timer = self.create_timer(self.poll_interval, self.poll_queue)
         self.get_logger().info(
             f"ERWIN bridge ready: robot={self.robot_id} action=/navigate_to_pose "
@@ -422,6 +458,7 @@ class ErwinRobotBridge(Node):
             self.active_mode = "seat"
             self.robot_status = "going_to_seat"
             self.database.update_robot_state(self.robot_id, "going_to_seat", assignment.session_id)
+            self.publish_display_state("navigating", assignment.session_id)
             self.get_logger().info(
                 f"Navigating session {assignment.session_id} to {assignment.target.location_code} "
                 f"({assignment.target.x}, {assignment.target.y}, {assignment.target.yaw})"
@@ -575,6 +612,7 @@ class ErwinRobotBridge(Node):
                 else:
                     self.robot_status = "home"
                     self.database.update_robot_state(self.robot_id, "home")
+                    self.publish_display_state("idle")
                     if self.pending_command_id is not None:
                         self.database.finish_command(self.pending_command_id, "completed")
                     self.get_logger().info("Robot reached home")
@@ -654,6 +692,11 @@ class ErwinRobotBridge(Node):
         self.active_mode = None
         self.hri_coordinator.clear()
         self.pending_command_id = None
+
+    def publish_display_state(self, state: str, session_id: str | None = None) -> None:
+        message = String()
+        message.data = json.dumps({"version": 1, "state": state, "session_id": session_id})
+        self.display_publisher.publish(message)
 
 
 def main() -> None:

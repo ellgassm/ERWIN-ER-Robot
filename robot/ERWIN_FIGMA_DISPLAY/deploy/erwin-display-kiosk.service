@@ -1,0 +1,20 @@
+[Unit]
+Description=ERWIN robot display kiosk
+After=graphical-session.target
+Wants=graphical-session.target
+After=erwin-rosbridge.service
+Wants=erwin-rosbridge.service
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/user/.Xauthority
+Environment=ERWIN_DISPLAY_ROOT=/home/user/robot-display
+Environment=ERWIN_DISPLAY_PORT=8080
+Environment=ERWIN_DISPLAY_BROWSER=auto
+ExecStart=/home/user/robot-display/deploy/erwin-display-kiosk.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

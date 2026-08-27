@@ -22,6 +22,12 @@ export type ErwinDisplayState =
   | "review_alert"
   | "returning_home";
 
+export interface DisplayStateMessage {
+  version: 1;
+  state: ErwinDisplayState;
+  session_id?: string | null;
+}
+
 // ─── Screen Props ─────────────────────────────────────────────────────────────
 
 export interface IdleScreenProps {

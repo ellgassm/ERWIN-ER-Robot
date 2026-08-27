@@ -21,5 +21,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "backend", "robot", "vite.config.ts"]
+  "include": ["src", "backend", "robot", "vite.config.ts"],
+  "exclude": ["robot/ERWIN_FIGMA_DISPLAY"]
 }

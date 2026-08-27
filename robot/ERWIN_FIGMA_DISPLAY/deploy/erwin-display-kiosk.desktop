@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=ERWIN Display Kiosk
+Comment=Start the ERWIN robot display after the graphical desktop loads
+Exec=/home/user/robot-display/deploy/erwin-display-kiosk.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true
